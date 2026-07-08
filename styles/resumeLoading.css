@@ -1,0 +1,38 @@
+.ai-loading-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.ai-loading-card {
+  background: #1e293b;
+  padding: 40px;
+  border-radius: 20px;
+  border: 1px solid #334155;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ai-loading-card h2 {
+  margin-top: 20px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.ai-loading-card p.status-text {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-top: 10px;
+  min-height: 20px;
+}
