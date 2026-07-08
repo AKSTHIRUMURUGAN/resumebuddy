@@ -103,7 +103,16 @@ function ResumeBuilderWorkspace() {
   useEffect(() => {
     if (!activeResume) return;
 
-    if (prevResumeRef.current && JSON.stringify(prevResumeRef.current) !== JSON.stringify(activeResume)) {
+    const cleanResume = (r: any) => {
+      if (!r) return null;
+      const { updatedAt, createdAt, _id, __v, ...rest } = r;
+      return JSON.stringify(rest);
+    };
+
+    const prevClean = cleanResume(prevResumeRef.current);
+    const activeClean = cleanResume(activeResume);
+
+    if (prevClean && prevClean !== activeClean) {
       if (!isHistoryAction.current) {
         // Clear any existing timers so we reset the debounce window
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);

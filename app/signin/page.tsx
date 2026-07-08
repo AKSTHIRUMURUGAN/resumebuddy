@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NextLink from "next/link";
 import {
@@ -35,7 +35,7 @@ async function exchangeTokenForSession(idToken: string): Promise<void> {
   }
 }
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
@@ -99,10 +99,10 @@ export default function SignInPage() {
       const provider =
         providerName === "google"
           ? (() => {
-              const p = new GoogleAuthProvider();
-              p.setCustomParameters({ prompt: "select_account" });
-              return p;
-            })()
+               const p = new GoogleAuthProvider();
+               p.setCustomParameters({ prompt: "select_account" });
+               return p;
+             })()
           : new GithubAuthProvider();
 
       const credential = await signInWithPopup(auth, provider);
@@ -284,5 +284,17 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 items-center justify-center p-6 font-sans">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      </div>
+    }>
+      <SignInContent />
+    </Suspense>
   );
 }

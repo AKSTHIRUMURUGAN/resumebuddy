@@ -71,7 +71,11 @@ export default function InlineTipTapEditor({ content, onChange, onImproveAi, dis
   });
 
   useEffect(() => {
-    if (editor && content !== editor.getText() && content !== editor.getHTML()) {
+    if (!editor) return;
+    
+    // Only update content programmatically if the editor does not have focus (e.g., undo/redo or loading a new resume)
+    // to prevent infinite cursor jump and save loops from normalized HTML mismatches.
+    if (!editor.isFocused && content !== editor.getHTML()) {
       editor.commands.setContent(content);
     }
   }, [content, editor]);
