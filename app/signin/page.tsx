@@ -48,6 +48,20 @@ function SignInContent() {
   const [error, setError] = useState("");
   const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
+  // Redirect client-side if already signed in
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        const data = await res.json();
+        if (data.signedIn) {
+          router.replace(callbackUrl);
+        }
+      } catch {}
+    };
+    checkSession();
+  }, [router, callbackUrl]);
+
   // In dev mode pre-fill for convenience
   useEffect(() => {
     if (isDevMode) {

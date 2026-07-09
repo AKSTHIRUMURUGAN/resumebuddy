@@ -66,3 +66,44 @@ export async function DELETE() {
   });
   return response;
 }
+
+// GET /api/auth/session — check session status
+export async function GET(request: NextRequest) {
+  const sessionToken = request.cookies.get("session")?.value;
+  if (!sessionToken) {
+    return NextResponse.json({ signedIn: false });
+  }
+
+  const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+  if (isDevMode) {
+    return NextResponse.json({ 
+      signedIn: true, 
+      user: { uid: "mock-user-123", email: "thirumuruganaks@gmail.com", name: "Thirumurugan" } 
+    });
+  }
+
+  try {
+    const parts = sessionToken.split(".");
+    if (parts.length !== 3) {
+      return NextResponse.json({ signedIn: false });
+    }
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+    
+    if (decoded.exp && Date.now() / 1000 > decoded.exp + 30) {
+      return NextResponse.json({ signedIn: false });
+    }
+    
+    return NextResponse.json({ 
+      signedIn: true, 
+      user: { 
+        uid: decoded.uid ?? decoded.sub ?? "", 
+        email: decoded.email ?? "", 
+        name: decoded.name ?? "" 
+      } 
+    });
+  } catch (error) {
+    return NextResponse.json({ signedIn: false });
+  }
+}

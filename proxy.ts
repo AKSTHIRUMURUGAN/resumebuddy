@@ -92,8 +92,35 @@ function unauthorized(message = "Unauthorized — please sign in"): NextResponse
 // Main proxy handler
 // ---------------------------------------------------------------------------
 
+function checkAuthStatus(request: NextRequest): boolean {
+  const sessionToken =
+    request.cookies.get("session")?.value ??
+    request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
+
+  if (!sessionToken) return false;
+
+  const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+  if (isDevMode) return true;
+
+  try {
+    const payload = decodeJwtPayload(sessionToken);
+    return !isExpired(payload);
+  } catch {
+    return false;
+  }
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+
+  // 0. Redirect authenticated users away from signin/signup
+  if (pathname === "/signin" || pathname === "/signup") {
+    if (checkAuthStatus(request)) {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
 
   // 1. Always allow public paths through
   if (isPublicPath(pathname)) {

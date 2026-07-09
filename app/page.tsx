@@ -1,8 +1,32 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, CheckCircle2, Shield, Sparkles, Zap, Award, Search, FileText } from "lucide-react";
+import { cookies } from "next/headers";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("session")?.value;
+
+  let isAuth = false;
+  if (sessionToken) {
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+    if (isDevMode) {
+      isAuth = true;
+    } else {
+      try {
+        const parts = sessionToken.split(".");
+        if (parts.length === 3) {
+          const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+          const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+          if (decoded.exp && Date.now() / 1000 < decoded.exp + 30) {
+            isAuth = true;
+          }
+        }
+      } catch {}
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-900 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans">
       {/* Header */}
@@ -21,12 +45,20 @@ export default function LandingPage() {
           <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
         </nav>
         <div className="flex items-center gap-4">
-          <Link href="/signin" className="text-sm font-medium hover:text-white transition-colors text-slate-300">
-            Sign In
-          </Link>
-          <Link href="/signup" className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition-smooth shadow-lg shadow-indigo-600/20">
-            Get Started
-          </Link>
+          {isAuth ? (
+            <Link href="/dashboard" className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition-smooth shadow-lg shadow-indigo-600/20">
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link href="/signin" className="text-sm font-medium hover:text-white transition-colors text-slate-300">
+                Sign In
+              </Link>
+              <Link href="/signup" className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition-smooth shadow-lg shadow-indigo-600/20">
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
@@ -52,8 +84,11 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
-            <Link href="/signup" className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full transition-smooth shadow-xl shadow-indigo-600/30">
-              Create Your Free Resume
+            <Link 
+              href={isAuth ? "/dashboard" : "/signup"} 
+              className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full transition-smooth shadow-xl shadow-indigo-600/30"
+            >
+              {isAuth ? "Go to Dashboard" : "Create Your Free Resume"}
               <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <a href="#features" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-8 py-4 rounded-full font-semibold transition-smooth">
