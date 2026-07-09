@@ -3,7 +3,7 @@ import { generateWithGemini } from "@/lib/gemini";
 import { BULLET_OPTIMIZER_PROMPTS } from "@/lib/prompts";
 
 // Actions that don't require actual text to rewrite
-const NO_TEXT_ACTIONS = new Set(["contact_linkedin", "sections"]);
+const NO_TEXT_ACTIONS = new Set(["contact_linkedin", "sections", "length", "contact_info"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
       const messages: Record<string, string> = {
         contact_linkedin: "Add your LinkedIn profile URL (e.g. https://linkedin.com/in/your-username) to the Personal Info section in the left editor panel.",
         sections: "Ensure your resume has Summary, Experience, Education, and Skills sections. Use the left editor panel to add any missing sections.",
+        length: "Your resume should ideally be between 150 and 800 words. Add more details to increase length, or condense content if it is too long.",
+        contact_info: "Add your email and phone number to the Personal Info section in the left editor panel.",
       };
       return NextResponse.json({
         success: true,

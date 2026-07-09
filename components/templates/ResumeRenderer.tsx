@@ -673,15 +673,32 @@ export default function ResumeRenderer({
           {skills.length > 0 && (
             <div className="mb-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1 mb-2">Technical Skills</h2>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {skills.map((skill: string, sIdx: number) => (
-                  <span 
-                    key={sIdx} 
-                    className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded font-medium"
-                  >
-                    {skill}
-                  </span>
-                ))}
+              <div className="flex flex-col gap-2 pt-1">
+                {(() => {
+                  const normalized = (() => {
+                    if (!skills) return [];
+                    if (!Array.isArray(skills)) return [];
+                    if (skills.length > 0 && typeof skills[0] === "object" && skills[0] !== null && "category" in skills[0]) {
+                      return skills as Array<{ category: string; items: string[] }>;
+                    }
+                    const stringItems = skills.filter((item) => typeof item === "string");
+                    return [{ category: "Skills", items: stringItems }];
+                  })();
+                  
+                  return normalized.map((cat, idx) => (
+                    <div key={idx} className="flex flex-wrap items-center gap-1.5 text-xs text-slate-700">
+                      <span className="font-bold text-slate-900">{cat.category}:</span>
+                      {cat.items.map((item: string, sIdx: number) => (
+                        <span 
+                          key={sIdx} 
+                          className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded font-medium"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}
@@ -722,7 +739,21 @@ export default function ResumeRenderer({
           {skills.length > 0 && (
             <div className="mb-4">
               <h2 className="text-xs font-bold uppercase border-b border-black pb-0.5 mb-1.5">Core Technical Skills</h2>
-              <p className="text-xs leading-normal">{skills.join(", ")}</p>
+              <div className="text-xs leading-normal">
+                {(() => {
+                  const normalized = (() => {
+                    if (!skills) return [];
+                    if (!Array.isArray(skills)) return [];
+                    if (skills.length > 0 && typeof skills[0] === "object" && skills[0] !== null && "category" in skills[0]) {
+                      return skills as Array<{ category: string; items: string[] }>;
+                    }
+                    const stringItems = skills.filter((item) => typeof item === "string");
+                    return [{ category: "Skills", items: stringItems }];
+                  })();
+
+                  return normalized.map(cat => `${cat.category}: ${cat.items.join(", ")}`).join(" | ");
+                })()}
+              </div>
             </div>
           )}
         </div>
@@ -953,15 +984,32 @@ export default function ResumeRenderer({
         <div className="grid grid-cols-4 gap-6">
           <div className="col-span-1 flex flex-col gap-6">
             <div className={getHeatmapBorder("skills")}>
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                <h3 className="text-xs font-bold text-white uppercase font-mono mb-3">Languages & APIs</h3>
-                <div className="flex flex-wrap gap-1">
-                  {skills.map((skill: string, idx: number) => (
-                    <span key={idx} className="bg-slate-950 border border-slate-800 text-[10px] text-indigo-300 px-2 py-0.5 rounded font-mono">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-3">
+                <h3 className="text-xs font-bold text-white uppercase font-mono mb-1">Languages & APIs</h3>
+                {(() => {
+                  const normalized = (() => {
+                    if (!skills) return [];
+                    if (!Array.isArray(skills)) return [];
+                    if (skills.length > 0 && typeof skills[0] === "object" && skills[0] !== null && "category" in skills[0]) {
+                      return skills as Array<{ category: string; items: string[] }>;
+                    }
+                    const stringItems = skills.filter((item) => typeof item === "string");
+                    return [{ category: "Skills", items: stringItems }];
+                  })();
+
+                  return normalized.map((cat, idx) => (
+                    <div key={idx} className="flex flex-col gap-1 text-[11px] font-mono">
+                      <span className="text-indigo-400 font-bold">{cat.category}:</span>
+                      <div className="flex flex-wrap gap-1 pl-1">
+                        {cat.items.map((item: string, sIdx: number) => (
+                          <span key={sIdx} className="bg-slate-950 border border-slate-800 text-[9px] text-slate-350 px-1.5 py-0.5 rounded">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           </div>

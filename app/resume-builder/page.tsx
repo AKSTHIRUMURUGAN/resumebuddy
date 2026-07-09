@@ -484,10 +484,10 @@ function ResumeBuilderWorkspace() {
       if (json.success && json.response) {
         setChatHistory(prev => [...prev, { role: "assistant", content: json.response }]);
       } else {
-        setChatHistory(prev => [...prev, { role: "assistant", content: "I encountered an issue analyzing your request." }]);
+        setChatHistory(prev => [...prev, { role: "assistant", content: json.error || "I encountered an issue analyzing your request." }]);
       }
-    } catch (err) {
-      setChatHistory(prev => [...prev, { role: "assistant", content: "Connection error with AI Coach server." }]);
+    } catch (err: any) {
+      setChatHistory(prev => [...prev, { role: "assistant", content: err.message || "Connection error with AI Coach server." }]);
     } finally {
       setSendingChat(false);
     }
@@ -524,10 +524,10 @@ function ResumeBuilderWorkspace() {
       if (json.success && json.response) {
         setCopilotHistory(prev => [...prev, { role: "assistant", content: json.response }]);
       } else {
-        setCopilotHistory(prev => [...prev, { role: "assistant", content: "I had trouble processing that. Please try again." }]);
+        setCopilotHistory(prev => [...prev, { role: "assistant", content: json.error || "I had trouble processing that. Please try again." }]);
       }
-    } catch {
-      setCopilotHistory(prev => [...prev, { role: "assistant", content: "Connection error. Please retry." }]);
+    } catch (err: any) {
+      setCopilotHistory(prev => [...prev, { role: "assistant", content: err.message || "Connection error. Please retry." }]);
     } finally {
       setSendingCopilot(false);
     }
@@ -545,6 +545,9 @@ function ResumeBuilderWorkspace() {
         body: JSON.stringify({ resumeId: id, resume: activeResume })
       });
       const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || "Could not run optimization scan.");
+      }
       if (json.success && json.data) setOptimizeReport(json.data);
     } catch (err: any) {
       addToast({ type: "error", title: "Analysis Failed", message: err.message || "Could not run optimization scan." });
@@ -558,7 +561,7 @@ function ResumeBuilderWorkspace() {
     if (!activeResume) return;
 
     // Direct informational fixes that don't need a text rewrite modal
-    if (issueKey === "contact_linkedin" || issueKey === "sections") {
+    if (issueKey === "contact_linkedin" || issueKey === "sections" || issueKey === "length" || issueKey === "contact_info") {
       executeFixIssue(issueKey, issueData, "", "");
       return;
     }
@@ -593,8 +596,17 @@ function ResumeBuilderWorkspace() {
         })
       });
       const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || "AI call failed");
+      }
       const fixed = json.suggestion || (json.suggestions && json.suggestions[0]) || null;
       if (fixed) {
+        if (issueKey === "contact_linkedin" || issueKey === "sections" || issueKey === "length" || issueKey === "contact_info") {
+          addToast({ type: "info", title: issueData.label || "Optimization Tip", message: fixed });
+          setFixingIssue(null);
+          return;
+        }
+
         // 1. Traverse and update matching highlight in experience or projects
         let applied = false;
         let nextResume = { ...activeResume };
@@ -705,6 +717,9 @@ function ResumeBuilderWorkspace() {
         })
       });
       const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || "AI call failed");
+      }
       const result = json.suggestion || (json.suggestions && json.suggestions[0]);
       if (result) {
         replaceText(result);
@@ -736,6 +751,9 @@ function ResumeBuilderWorkspace() {
         })
       });
       const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || "Failed to optimize project");
+      }
       if (json.success && json.data) {
         setProjOptimizedVariants(json.data);
         setProjWizardStep(3);

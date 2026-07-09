@@ -58,8 +58,17 @@ export async function generateWithGemini({
     }
 
     return textContent;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error calling Gemini API:", error);
+    if (
+      error.status === 429 ||
+      error.statusCode === 429 ||
+      error.message?.includes("429") ||
+      error.message?.toLowerCase().includes("quota") ||
+      error.message?.toLowerCase().includes("rate limit")
+    ) {
+      throw new Error("AI Quota Exceeded. Please try again after a few minutes.");
+    }
     throw error;
   }
 }
