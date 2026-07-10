@@ -200,6 +200,9 @@ function getInitialContentHtml(item: any, type: "experience" | "education" | "pr
     } else if (templateId === "tech") {
       headerStr = `<div style="display: flex; justify-content: space-between; font-weight: bold;"><span>${position}</span><span style="color: #64748b;">${duration}</span></div>` +
                   `<div style="color: #6366f1; font-weight: 500; margin-bottom: 4px;">${company} — ${location}</div>`;
+    } else if (templateId === "latex") {
+      headerStr = `<div style="display: flex; justify-content: space-between; font-weight: bold; font-family: Georgia, serif; color: #000; font-size: 12px;"><span>${company}</span><span>${location}</span></div>` +
+                  `<div style="display: flex; justify-content: space-between; font-style: italic; font-family: Georgia, serif; color: #000; font-size: 11px;"><span>${position}</span><span>${duration}</span></div>`;
     } else {
       // Modern fallback (LaTeX inspired)
       headerStr = `<div style="display: flex; justify-content: space-between; font-weight: bold; font-family: Georgia, serif;"><span style="color: #0000FF; font-size: 12px;">${company}</span><span style="font-size: 12px;">${location}</span></div>` +
@@ -244,6 +247,10 @@ function getInitialContentHtml(item: any, type: "experience" | "education" | "pr
       const gpaStr = gpa ? ` (GPA: ${gpa})` : "";
       return `<div><div style="display: flex; justify-content: space-between; font-weight: bold;"><span>${institution}</span><span style="color: #64748b;">${duration}</span></div>` +
              `<div style="font-style: italic; color: #6366f1;">${degree}${gpaStr}</div></div>`;
+    } else if (templateId === "latex") {
+      const gpaStr = gpa ? `; GPA: ${gpa}` : "";
+      return `<div style="font-family: Georgia, serif; color: #000;"><div style="display: flex; justify-content: space-between; font-weight: bold;"><span style="font-size: 12px;">${institution}</span><span style="font-size: 12px;">${item.location || ""}</span></div>` +
+             `<div style="display: flex; justify-content: space-between; font-style: italic;"><span style="font-size: 11px;">${degree}${gpaStr}</span><span style="font-size: 11px;">${duration}</span></div></div>`;
     } else {
       // Modern fallback (LaTeX inspired)
       const gpaStr = gpa ? `; CGPA: ${gpa}` : "";
@@ -270,6 +277,10 @@ function getInitialContentHtml(item: any, type: "experience" | "education" | "pr
       headerStr = `<div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">` +
                   `<span style="font-weight: bold;">${title}</span>` +
                   `<div>${techBadgeStr}</div></div>`;
+    } else if (templateId === "latex") {
+      const techStr = technologies.length > 0 ? ` (${technologies.join(", ")})` : "";
+      headerStr = `<div style="font-family: Georgia, serif; color: #000; font-weight: bold; font-size: 12px;"><span>${title}</span>` +
+                  `<span style="font-style: italic; font-size: 11px; font-weight: normal; margin-left: 6px;">${techStr}</span></div>`;
     } else {
       // Standard/fallback (LaTeX inspired)
       const techStr = technologies.length > 0 ? ` - Tech: ${technologies.join(", ")}` : "";
@@ -1060,6 +1071,223 @@ export default function ResumeRenderer({
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Render Template G: LaTeX (Strict Black-and-White Corporate/Academic layout)
+  if (templateId === "latex") {
+    const achievements = data.achievements || [];
+    const certifications = data.certifications || [];
+    
+    return (
+      <div 
+        style={{
+          ...inlineStyles,
+          fontFamily: "Georgia, serif",
+          color: "#000000",
+          backgroundColor: "#ffffff",
+          padding: "45px"
+        }}
+        className="w-full min-h-[1050px] border border-slate-200 shadow-lg mx-auto print:border-0 print:shadow-none"
+      >
+        {/* Name and Header Info */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-serif font-bold uppercase tracking-wide text-black">
+            {renderEditableText(personalInfo.fullName || "Your Full Name", "personalInfo", 0, undefined, "fullName")}
+          </h1>
+          <div className="text-[10.5px] mt-1.5 text-slate-850 font-serif flex justify-center flex-wrap gap-x-2 gap-y-1.5">
+            {personalInfo.email && <span>{renderEditableText(personalInfo.email, "personalInfo", 0, undefined, "email")}</span>}
+            {personalInfo.email && (personalInfo.phone || personalInfo.location || personalInfo.linkedin || personalInfo.github) && <span>|</span>}
+            {personalInfo.phone && <span>{renderEditableText(personalInfo.phone, "personalInfo", 0, undefined, "phone")}</span>}
+            {personalInfo.phone && (personalInfo.location || personalInfo.linkedin || personalInfo.github) && <span>|</span>}
+            {personalInfo.location && <span>{renderEditableText(personalInfo.location, "personalInfo", 0, undefined, "location")}</span>}
+            {personalInfo.location && (personalInfo.linkedin || personalInfo.github) && <span>|</span>}
+            {personalInfo.linkedin && <span>LinkedIn: {renderEditableText(personalInfo.linkedin, "personalInfo", 0, undefined, "linkedin")}</span>}
+            {personalInfo.linkedin && personalInfo.github && <span>|</span>}
+            {personalInfo.github && <span>GitHub: {renderEditableText(personalInfo.github, "personalInfo", 0, undefined, "github")}</span>}
+          </div>
+        </div>
+
+        {/* Summary */}
+        {personalInfo.summary && (
+          <div className="mb-4">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              About Me
+            </h2>
+            <div className="border-t border-black my-1" />
+            <div className="text-[11px] leading-relaxed text-slate-900 font-serif whitespace-pre-wrap">
+              {renderEditableText(personalInfo.summary, "summary", 0)}
+            </div>
+          </div>
+        )}
+
+        {/* Experience */}
+        {experience.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Experience
+            </h2>
+            <div className="border-t border-black my-1" />
+            <div className="flex flex-col gap-4 mt-2">
+              {experience.map((exp: any, expIdx: number) => (
+                <BlockWrapper
+                  key={expIdx}
+                  type="experience"
+                  index={expIdx}
+                  workMode={workMode}
+                  isFirst={expIdx === 0}
+                  isLast={expIdx === experience.length - 1}
+                  onMoveUp={() => moveItem("experience", expIdx, -1)}
+                  onMoveDown={() => moveItem("experience", expIdx, 1)}
+                  onDelete={() => deleteItem("experience", expIdx)}
+                  onImprove={() => improveBlock("experience", expIdx)}
+                >
+                  <div className="animate-fade-in text-[11px] w-full text-left font-serif leading-relaxed text-black">
+                    {renderEditableText(
+                      exp.contentHtml || getInitialContentHtml(exp, "experience", templateId),
+                      "experience",
+                      expIdx,
+                      undefined,
+                      "contentHtml"
+                    )}
+                  </div>
+                </BlockWrapper>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Education */}
+        {education.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Education
+            </h2>
+            <div className="border-t border-black my-1" />
+            <div className="flex flex-col gap-4 mt-2">
+              {education.map((edu: any, eduIdx: number) => (
+                <BlockWrapper
+                  key={eduIdx}
+                  type="education"
+                  index={eduIdx}
+                  workMode={workMode}
+                  isFirst={eduIdx === 0}
+                  isLast={eduIdx === education.length - 1}
+                  onMoveUp={() => moveItem("education", eduIdx, -1)}
+                  onMoveDown={() => moveItem("education", eduIdx, 1)}
+                  onDelete={() => deleteItem("education", eduIdx)}
+                  onImprove={() => improveBlock("education", eduIdx)}
+                >
+                  <div className="animate-fade-in text-[11px] w-full text-left font-serif leading-relaxed text-black">
+                    {renderEditableText(
+                      edu.contentHtml || getInitialContentHtml(edu, "education", templateId),
+                      "education",
+                      eduIdx,
+                      undefined,
+                      "contentHtml"
+                    )}
+                  </div>
+                </BlockWrapper>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Projects */}
+        {projects.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Projects
+            </h2>
+            <div className="border-t border-black my-1" />
+            <div className="flex flex-col gap-4 mt-2">
+              {projects.map((proj: any, projIdx: number) => (
+                <BlockWrapper
+                  key={projIdx}
+                  type="project"
+                  index={projIdx}
+                  workMode={workMode}
+                  isFirst={projIdx === 0}
+                  isLast={projIdx === projects.length - 1}
+                  onMoveUp={() => moveItem("project", projIdx, -1)}
+                  onMoveDown={() => moveItem("project", projIdx, 1)}
+                  onDelete={() => deleteItem("project", projIdx)}
+                  onImprove={() => improveBlock("project", projIdx)}
+                >
+                  <div className="animate-fade-in text-[11px] w-full text-left font-serif leading-relaxed text-black">
+                    {renderEditableText(
+                      proj.contentHtml || getInitialContentHtml(proj, "project", templateId),
+                      "project",
+                      projIdx,
+                      undefined,
+                      "contentHtml"
+                    )}
+                  </div>
+                </BlockWrapper>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skills */}
+        {skills.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Skills
+            </h2>
+            <div className="border-t border-black my-1" />
+            <div className="flex flex-col gap-1.5 mt-2 font-serif text-[11px] text-slate-800">
+              {(() => {
+                const normalized = (() => {
+                  if (skills.length > 0 && typeof skills[0] === "object" && skills[0] !== null && "category" in skills[0]) {
+                    return skills as Array<{ category: string; items: string[] }>;
+                  }
+                  const stringItems = skills.filter((item: any) => typeof item === "string");
+                  if (stringItems.length === 0) return [];
+                  return [{ category: "Skills", items: stringItems }];
+                })();
+
+                return normalized.map((cat, cIdx) => (
+                  <div key={cIdx} className="flex items-start gap-1">
+                    <span className="font-bold text-black shrink-0">{cat.category}:</span>
+                    <span className="ml-1 text-slate-800">{cat.items.join(", ")}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Achievements */}
+        {achievements.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Achievements
+            </h2>
+            <div className="border-t border-black my-1" />
+            <ul className="list-disc pl-5 text-[11px] text-slate-800 flex flex-col gap-1 mt-2 font-serif">
+              {achievements.map((ach: string, idx: number) => (
+                <li key={idx}>{ach}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Certifications */}
+        {certifications.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-black mb-1">
+              Certifications
+            </h2>
+            <div className="border-t border-black my-1" />
+            <ul className="list-disc pl-5 text-[11px] text-slate-800 flex flex-col gap-1 mt-2 font-serif">
+              {certifications.map((cert: string, idx: number) => (
+                <li key={idx}>{cert}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
   }

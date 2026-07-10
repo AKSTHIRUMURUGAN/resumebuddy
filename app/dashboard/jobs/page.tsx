@@ -41,6 +41,7 @@ function JobsContent() {
   const addToast = useToastStore((state) => state.addToast);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
   // Fetch jobs
   const { data: jobsData, isLoading: jobsLoading, error: jobsError, refetch } = useQuery({
@@ -51,7 +52,10 @@ function JobsContent() {
       url.searchParams.set("location", locationFilter);
       
       const res = await fetch(url.toString());
-      if (!res.ok) throw new Error("Failed to fetch jobs");
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Failed to fetch jobs");
+      }
       const json = await res.json();
       return json.jobs as Job[];
     }
@@ -116,18 +120,60 @@ function JobsContent() {
     setShowTailorModal(true);
   };
 
-  const executeTailoring = () => {
+  const executeTailoring = async () => {
     if (!selectedResumeId || !selectedJob) return;
     
+    setIsGeneratingDescription(true);
+    let finalDescription = selectedJob.description || "";
+    
+    const isPlaceholder = 
+      !finalDescription || 
+      finalDescription.includes("No description provided") || 
+      finalDescription.includes("Click the 'View Job'") ||
+      finalDescription.includes("Click Apply to view");
+      
+    if (isPlaceholder) {
+      try {
+        addToast({
+          type: "info",
+          title: "AI Generation",
+          message: "Generating a realistic job description for " + selectedJob.title + "..."
+        });
+        
+        const res = await fetch("/api/ai/generate-description", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: selectedJob.title,
+            company: selectedJob.company_name,
+            location: selectedJob.location,
+            industry: selectedJob.company_industry
+          })
+        });
+        
+        if (res.ok) {
+          const json = await res.json();
+          if (json.description) {
+            finalDescription = json.description;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to generate AI description, falling back to original", err);
+      }
+    }
+    
     // Save job details in localStorage for the ATS checker to fetch
-    localStorage.setItem("prefilledJobDescription", selectedJob.description || "");
+    localStorage.setItem("prefilledJobDescription", finalDescription);
     
     addToast({
-      type: "info",
+      type: "success",
       title: "Optimizing",
       message: "Redirecting to ATS auditor panel..."
     });
+    
+    setIsGeneratingDescription(false);
     setShowTailorModal(false);
+    setShowDetailModal(false);
     
     // Redirect to the ATS checker page with the chosen resume ID
     router.push(`/ats-checker?id=${selectedResumeId}`);
@@ -241,8 +287,9 @@ function JobsContent() {
               <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             </div>
           ) : jobsError ? (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-6 rounded-2xl text-center text-xs">
-              {jobsError.message || "Failed to load job listings."}
+            <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 border border-slate-900/60 rounded-2xl text-center text-xs gap-2">
+              <span className="text-slate-400 font-semibold">No active jobs found matching your criteria.</span>
+              <span className="text-red-400/80 font-mono text-[10px]">Error details: {jobsError.message || "Failed to load job listings."}</span>
             </div>
           ) : jobs.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-900/60 p-10 rounded-2xl text-center text-slate-500 text-xs">
@@ -465,9 +512,11 @@ function JobsContent() {
                 </button>
                 <button
                   onClick={executeTailoring}
-                  className="bg-indigo-600 hover:bg-indigo-550 text-white px-5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  disabled={isGeneratingDescription}
+                  className="bg-indigo-600 hover:bg-indigo-550 text-white px-5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Tailor Now
+                  {isGeneratingDescription && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isGeneratingDescription ? "Generating Description..." : "Tailor Now"}
                 </button>
               </div>
             </motion.div>

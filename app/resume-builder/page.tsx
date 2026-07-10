@@ -1203,6 +1203,7 @@ function ResumeBuilderWorkspace() {
                     <option value="executive">Executive Classic Leader</option>
                     <option value="harvard">Harvard Ivy League (Academic)</option>
                     <option value="tech">Developer Console (Monospace)</option>
+                    <option value="latex">LaTeX Academic/CS (Strict Serif)</option>
                   </select>
                 </div>
               </div>
