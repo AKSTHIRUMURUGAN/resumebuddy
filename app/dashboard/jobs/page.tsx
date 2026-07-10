@@ -33,7 +33,64 @@ interface ResumeItem {
 
 function JobsContent() {
   const router = useRouter();
+
+  // Renders a LinkedIn job description with styled sections, bullets, and emojis
+  const renderDescription = (text: string) => {
+    const lines = text.split("\n").filter((l) => l.trim() !== "");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i].trim();
+
+      // Section heading heuristics: ALL CAPS line, or ends with ":", or emoji-prefixed header
+      const isSectionHead =
+        /^[A-Z][A-Z\s&/\-()]{4,}$/.test(line) ||
+        (/^.{2,60}:$/.test(line) && !/^[•\-\*]/.test(line)) ||
+        /^[\u{1F300}-\u{1FAFF}]/u.test(line);
+
+      if (isSectionHead) {
+        elements.push(
+          <h4 key={i} className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-4 mb-1.5 first:mt-0">
+            {line.replace(/:$/, "")}
+          </h4>
+        );
+      } else if (/^[•\-\*]\s/.test(line) || /^\d+\.\s/.test(line)) {
+        // Bullet / numbered list — collect consecutive items
+        const bullets: string[] = [];
+        while (
+          i < lines.length &&
+          (/^[•\-\*]\s/.test(lines[i].trim()) || /^\d+\.\s/.test(lines[i].trim()))
+        ) {
+          bullets.push(lines[i].trim().replace(/^[•\-\*\d+.]\s*/, ""));
+          i++;
+        }
+        elements.push(
+          <ul key={`ul-${i}`} className="space-y-1 mb-1">
+            {bullets.map((b, bi) => (
+              <li key={bi} className="flex gap-2 text-[11px] text-slate-300 leading-relaxed">
+                <span className="text-indigo-500 mt-0.5 shrink-0">›</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        );
+        continue;
+      } else {
+        elements.push(
+          <p key={i} className="text-[11px] text-slate-400 leading-relaxed">
+            {line}
+          </p>
+        );
+      }
+      i++;
+    }
+    return <div className="space-y-0.5">{elements}</div>;
+  };
   const [searchQuery, setSearchQuery] = useState("");
+  // submittedQuery is what actually triggers the fetch — only updated on form submit
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [submittedLocation, setSubmittedLocation] = useState("dubai+europe");
   const [locationFilter, setLocationFilter] = useState("dubai+europe");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showTailorModal, setShowTailorModal] = useState(false);
@@ -43,59 +100,27 @@ function JobsContent() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
-  // Helper to map a raw API job to our Job interface
-  const mapJob = (job: any, fallbackCity: string): Job => ({
-    job_id: job.id || Math.random().toString(),
-    title: job.title || "Job Position",
-    company_name: job.company || "Confidential",
-    location: [job.city, job.state, job.country].filter(Boolean).join(", ") || fallbackCity,
-    posted_date: job.posted_date || job.open_time || "",
-    // LinkedIn always returns null for apply_url - use job_url (the LinkedIn listing link)
-    apply_url: job.job_url || job.apply_url || "https://www.linkedin.com/jobs",
-    description: job.description || "No description provided. Click Apply to view full details on LinkedIn.",
-    company_industry: "",
-    headcount: job.applicants ? `${job.applicants} applicants` : undefined,
-    // direct_apply = LinkedIn Easy Apply (apply_url present); job_url is just the listing
-    direct_apply: !!job.apply_url,
-    company_logo: job.company_logo || null
-  });
-
-  // Fetch jobs - only when a keyword is provided to avoid garbage global results
-  const { data: jobsData, isLoading: jobsLoading, error: jobsError, refetch } = useQuery({
-    queryKey: ["jobs", searchQuery, locationFilter],
-    enabled: !!searchQuery,
+  // Fetch jobs via the internal Next.js proxy (/api/jobs) to avoid CORS and timeout issues
+  const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
+    // Key is driven by submittedQuery/submittedLocation, NOT the live input values
+    queryKey: ["jobs", submittedQuery, submittedLocation],
+    enabled: !!submittedQuery,
     queryFn: async () => {
-      const buildUrl = (city?: string) => {
-        const url = new URL("http://145.223.19.170:8080/api/v1/jobs");
-        url.searchParams.set("source", "linkedin");
-        url.searchParams.set("keyword", searchQuery);
-        if (city) url.searchParams.set("city", city);
-        return url.toString();
-      };
+      const url = new URL("/api/jobs", window.location.origin);
+      url.searchParams.set("keyword", submittedQuery);
+      url.searchParams.set("location", submittedLocation);
 
-      // "dubai+europe" means we need to fetch BOTH and merge results
-      if (locationFilter === "dubai+europe") {
-        const [dubaiRes, europeRes] = await Promise.all([
-          fetch(buildUrl("dubai")),
-          fetch(buildUrl("europe"))
-        ]);
-        const dubaiJobs = dubaiRes.ok ? await dubaiRes.json() : [];
-        const europeJobs = europeRes.ok ? await europeRes.json() : [];
-        const seen = new Set<string>();
-        const merged = [...dubaiJobs, ...europeJobs].filter((j: any) => {
-          if (seen.has(j.id)) return false;
-          seen.add(j.id);
-          return true;
-        });
-        return merged.map((j: any) => mapJob(j, "Dubai / Europe")) as Job[];
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
       }
 
-      // Single city fetch
-      const res = await fetch(buildUrl(locationFilter));
-      if (!res.ok) throw new Error(`Failed to fetch jobs (Status ${res.status})`);
-      const jobsArray = await res.json();
-      return (jobsArray || []).map((j: any) => mapJob(j, locationFilter)) as Job[];
-    }
+      const json = await res.json();
+      return (json.jobs || []) as Job[];
+    },
+    retry: 1,
+    staleTime: 5 * 60_000, // 5 min cache per unique keyword+location combo
   });
 
   // Fetch resumes to offer "Tailor Resume" integration
@@ -128,7 +153,9 @@ function JobsContent() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    refetch();
+    if (!searchQuery.trim()) return;
+    setSubmittedQuery(searchQuery.trim());
+    setSubmittedLocation(locationFilter);
   };
 
   const handleLogout = async () => {
@@ -319,7 +346,7 @@ function JobsContent() {
 
         {/* Jobs Grid (4 Cards per Row on Desktop) */}
         <div className="flex-1 overflow-y-auto max-h-[750px] pr-2 custom-scrollbar">
-          {!searchQuery && !jobsLoading ? (
+          {!submittedQuery && !jobsLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
               <div className="bg-indigo-600/10 border border-indigo-500/20 p-5 rounded-2xl">
                 <Search className="h-8 w-8 text-indigo-400 mx-auto" />
@@ -341,7 +368,7 @@ function JobsContent() {
             </div>
           ) : jobs.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-900/60 p-10 rounded-2xl text-center text-slate-500 text-xs">
-              No jobs found for <span className="text-white font-semibold">"{searchQuery}"</span>. Try a different keyword or location.
+              No jobs found for <span className="text-white font-semibold">"{submittedQuery}"</span>. Try a different keyword or location.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-12">
@@ -389,7 +416,12 @@ function JobsContent() {
                     <h3 className="font-bold text-xs text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug mb-1">
                       {job.title}
                     </h3>
-                    <div className="text-[11px] text-slate-455 font-medium mb-3">{job.company_name}</div>
+                    <div className="text-[11px] text-slate-455 font-medium mb-2">{job.company_name}</div>
+                    {job.description && !job.description.includes("Click the 'View Job'") && !job.description.includes("No description provided") && (
+                      <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
+                        {job.description.replace(/\n+/g, " ").slice(0, 120)}…
+                      </p>
+                    )}
                   </div>
 
                   {/* Bottom info: Location & Date */}
@@ -475,11 +507,20 @@ function JobsContent() {
               </div>
 
               {/* Description Content */}
-              <div className="p-6 overflow-y-auto text-left text-xs leading-relaxed text-slate-350 space-y-4 font-sans custom-scrollbar flex-1 max-h-[400px]">
-                <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Job Description</h3>
-                  <p className="whitespace-pre-wrap">{selectedJob.description || "No description provided."}</p>
-                </div>
+              <div className="p-6 overflow-y-auto text-left space-y-5 font-sans custom-scrollbar flex-1 max-h-[420px]">
+                {selectedJob.description && !selectedJob.description.includes("Click the 'View Job'") ? (
+                  renderDescription(selectedJob.description)
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                    <div className="bg-slate-800/60 p-3 rounded-xl">
+                      <ExternalLink className="h-5 w-5 text-slate-500" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400">Full description on LinkedIn</p>
+                      <p className="text-[10px] text-slate-600 mt-1">Click "Apply On LinkedIn" below to view the complete job post.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Action Buttons */}
