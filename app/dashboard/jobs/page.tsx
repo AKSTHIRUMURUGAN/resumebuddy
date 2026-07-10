@@ -34,7 +34,7 @@ interface ResumeItem {
 function JobsContent() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [locationFilter, setLocationFilter] = useState("Dubai OR Europe");
+  const [locationFilter, setLocationFilter] = useState("dubai+europe");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showTailorModal, setShowTailorModal] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string>("");
@@ -43,21 +43,58 @@ function JobsContent() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
-  // Fetch jobs
+  // Helper to map a raw API job to our Job interface
+  const mapJob = (job: any, fallbackCity: string): Job => ({
+    job_id: job.id || Math.random().toString(),
+    title: job.title || "Job Position",
+    company_name: job.company || "Confidential",
+    location: [job.city, job.state, job.country].filter(Boolean).join(", ") || fallbackCity,
+    posted_date: job.posted_date || job.open_time || "",
+    // LinkedIn always returns null for apply_url - use job_url (the LinkedIn listing link)
+    apply_url: job.job_url || job.apply_url || "https://www.linkedin.com/jobs",
+    description: job.description || "No description provided. Click Apply to view full details on LinkedIn.",
+    company_industry: "",
+    headcount: job.applicants ? `${job.applicants} applicants` : undefined,
+    // direct_apply = LinkedIn Easy Apply (apply_url present); job_url is just the listing
+    direct_apply: !!job.apply_url,
+    company_logo: job.company_logo || null
+  });
+
+  // Fetch jobs - only when a keyword is provided to avoid garbage global results
   const { data: jobsData, isLoading: jobsLoading, error: jobsError, refetch } = useQuery({
     queryKey: ["jobs", searchQuery, locationFilter],
+    enabled: !!searchQuery,
     queryFn: async () => {
-      const url = new URL("/api/jobs", window.location.origin);
-      if (searchQuery) url.searchParams.set("title", searchQuery);
-      url.searchParams.set("location", locationFilter);
-      
-      const res = await fetch(url.toString());
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to fetch jobs");
+      const buildUrl = (city?: string) => {
+        const url = new URL("http://145.223.19.170:8080/api/v1/jobs");
+        url.searchParams.set("source", "linkedin");
+        url.searchParams.set("keyword", searchQuery);
+        if (city) url.searchParams.set("city", city);
+        return url.toString();
+      };
+
+      // "dubai+europe" means we need to fetch BOTH and merge results
+      if (locationFilter === "dubai+europe") {
+        const [dubaiRes, europeRes] = await Promise.all([
+          fetch(buildUrl("dubai")),
+          fetch(buildUrl("europe"))
+        ]);
+        const dubaiJobs = dubaiRes.ok ? await dubaiRes.json() : [];
+        const europeJobs = europeRes.ok ? await europeRes.json() : [];
+        const seen = new Set<string>();
+        const merged = [...dubaiJobs, ...europeJobs].filter((j: any) => {
+          if (seen.has(j.id)) return false;
+          seen.add(j.id);
+          return true;
+        });
+        return merged.map((j: any) => mapJob(j, "Dubai / Europe")) as Job[];
       }
-      const json = await res.json();
-      return json.jobs as Job[];
+
+      // Single city fetch
+      const res = await fetch(buildUrl(locationFilter));
+      if (!res.ok) throw new Error(`Failed to fetch jobs (Status ${res.status})`);
+      const jobsArray = await res.json();
+      return (jobsArray || []).map((j: any) => mapJob(j, locationFilter)) as Job[];
     }
   });
 
@@ -122,16 +159,16 @@ function JobsContent() {
 
   const executeTailoring = async () => {
     if (!selectedResumeId || !selectedJob) return;
-    
+
     setIsGeneratingDescription(true);
     let finalDescription = selectedJob.description || "";
-    
-    const isPlaceholder = 
-      !finalDescription || 
-      finalDescription.includes("No description provided") || 
+
+    const isPlaceholder =
+      !finalDescription ||
+      finalDescription.includes("No description provided") ||
       finalDescription.includes("Click the 'View Job'") ||
       finalDescription.includes("Click Apply to view");
-      
+
     if (isPlaceholder) {
       try {
         addToast({
@@ -139,7 +176,7 @@ function JobsContent() {
           title: "AI Generation",
           message: "Generating a realistic job description for " + selectedJob.title + "..."
         });
-        
+
         const res = await fetch("/api/ai/generate-description", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -150,7 +187,7 @@ function JobsContent() {
             industry: selectedJob.company_industry
           })
         });
-        
+
         if (res.ok) {
           const json = await res.json();
           if (json.description) {
@@ -161,20 +198,20 @@ function JobsContent() {
         console.error("Failed to generate AI description, falling back to original", err);
       }
     }
-    
+
     // Save job details in localStorage for the ATS checker to fetch
     localStorage.setItem("prefilledJobDescription", finalDescription);
-    
+
     addToast({
       type: "success",
       title: "Optimizing",
       message: "Redirecting to ATS auditor panel..."
     });
-    
+
     setIsGeneratingDescription(false);
     setShowTailorModal(false);
     setShowDetailModal(false);
-    
+
     // Redirect to the ATS checker page with the chosen resume ID
     router.push(`/ats-checker?id=${selectedResumeId}`);
   };
@@ -197,7 +234,7 @@ function JobsContent() {
           <Link href="/dashboard/jobs" className="text-white">Find Jobs</Link>
         </div>
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowProfileDropdown(!showProfileDropdown)}
             className="flex items-center gap-3 hover:bg-slate-900 p-1.5 rounded-xl transition-smooth focus:outline-none cursor-pointer"
           >
@@ -219,7 +256,7 @@ function JobsContent() {
                   <span className="font-bold text-white">Thirumurugan</span>
                   <span className="text-[10px] text-slate-500 truncate">thirumuruganaks@gmail.com</span>
                 </div>
-                <button 
+                <button
                   onClick={handleLogout}
                   className="w-full text-left font-semibold text-red-400 hover:text-red-300 transition-colors cursor-pointer"
                 >
@@ -262,13 +299,13 @@ function JobsContent() {
               onChange={(e) => setLocationFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[150px]"
             >
-              <option value="Dubai OR Europe">Dubai & Europe</option>
-              <option value="Dubai">Dubai, UAE</option>
-              <option value="Europe">Europe (All)</option>
-              <option value="London, United Kingdom">London, UK</option>
-              <option value="Amsterdam, Netherlands">Amsterdam, NL</option>
-              <option value="Berlin, Germany">Berlin, DE</option>
-              <option value="Stockholm, Sweden">Stockholm, SE</option>
+              <option value="dubai+europe">Dubai & Europe</option>
+              <option value="dubai">Dubai, UAE</option>
+              <option value="europe">Europe (All)</option>
+              <option value="london">London, UK</option>
+              <option value="amsterdam">Amsterdam, NL</option>
+              <option value="berlin">Berlin, DE</option>
+              <option value="stockholm">Stockholm, SE</option>
             </select>
             <button
               type="submit"
@@ -282,18 +319,29 @@ function JobsContent() {
 
         {/* Jobs Grid (4 Cards per Row on Desktop) */}
         <div className="flex-1 overflow-y-auto max-h-[750px] pr-2 custom-scrollbar">
-          {jobsLoading ? (
+          {!searchQuery && !jobsLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+              <div className="bg-indigo-600/10 border border-indigo-500/20 p-5 rounded-2xl">
+                <Search className="h-8 w-8 text-indigo-400 mx-auto" />
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">Search for Jobs</p>
+                <p className="text-slate-500 text-xs mt-1">Type a job title or keyword above and click <span className="text-indigo-400">Find Jobs</span> to search LinkedIn.</p>
+                <p className="text-slate-600 text-[10px] mt-1">e.g. "Frontend Engineer", "React", "DevOps", "Product Manager"</p>
+              </div>
+            </div>
+          ) : jobsLoading ? (
             <div className="flex-1 flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             </div>
           ) : jobsError ? (
             <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 border border-slate-900/60 rounded-2xl text-center text-xs gap-2">
-              <span className="text-slate-400 font-semibold">No active jobs found matching your criteria.</span>
-              <span className="text-red-400/80 font-mono text-[10px]">Error details: {jobsError.message || "Failed to load job listings."}</span>
+              <span className="text-slate-400 font-semibold">Failed to load job listings.</span>
+              <span className="text-red-400/80 font-mono text-[10px]">{jobsError.message}</span>
             </div>
           ) : jobs.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-900/60 p-10 rounded-2xl text-center text-slate-500 text-xs">
-              No active jobs found matching your criteria. Try another search.
+              No jobs found for <span className="text-white font-semibold">"{searchQuery}"</span>. Try a different keyword or location.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-12">
@@ -321,14 +369,14 @@ function JobsContent() {
                           }}
                         />
                       ) : null}
-                      <div 
+                      <div
                         className="w-full h-full flex items-center justify-center font-bold text-xs bg-indigo-650/10 text-indigo-400"
                         style={{ display: job.company_logo ? "none" : "flex" }}
                       >
                         {job.company_name ? job.company_name.charAt(0).toUpperCase() : "J"}
                       </div>
                     </div>
-                    
+
                     {job.direct_apply && (
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-semibold px-2 py-0.5 rounded-full shrink-0">
                         Easy Apply
@@ -392,7 +440,7 @@ function JobsContent() {
                         }}
                       />
                     ) : null}
-                    <div 
+                    <div
                       className="w-full h-full flex items-center justify-center font-bold text-lg bg-indigo-650/10 text-indigo-400"
                       style={{ display: selectedJob.company_logo ? "none" : "flex" }}
                     >
@@ -402,7 +450,7 @@ function JobsContent() {
                   <div>
                     <h2 className="text-base font-bold text-white leading-snug">{selectedJob.title}</h2>
                     <div className="text-xs text-indigo-400 font-semibold mt-1">{selectedJob.company_name}</div>
-                    
+
                     <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 mt-2.5">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5 text-slate-500" />
@@ -415,8 +463,8 @@ function JobsContent() {
                     </div>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => setShowDetailModal(false)}
                   className="text-slate-400 hover:text-white bg-slate-950/60 border border-slate-800 p-1.5 rounded-full transition-smooth shrink-0 self-end sm:self-start cursor-pointer"
                 >
@@ -446,7 +494,7 @@ function JobsContent() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Tailor My Resume
                 </button>
-                
+
                 {selectedJob.apply_url && (
                   <a
                     href={selectedJob.apply_url}
@@ -458,7 +506,7 @@ function JobsContent() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
-                
+
                 <button
                   onClick={() => setShowDetailModal(false)}
                   className="bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 hover:text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
