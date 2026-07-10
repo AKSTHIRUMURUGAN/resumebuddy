@@ -110,7 +110,7 @@ function checkAuthStatus(request: NextRequest): boolean {
   }
 }
 
-export async function proxy(request: NextRequest): Promise<NextResponse> {
+export default async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // 0. Redirect authenticated users away from signin/signup

@@ -38,6 +38,14 @@ function AtsCheckerPage() {
   const [activeReport, setActiveReport] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"audit" | "cover-letter" | "interview" | "linkedin">("audit");
 
+  useEffect(() => {
+    const prefilled = localStorage.getItem("prefilledJobDescription");
+    if (prefilled) {
+      setJobDescription(prefilled);
+      localStorage.removeItem("prefilledJobDescription");
+    }
+  }, []);
+
   // LinkedIn Optimizer states
   const [linkedinHeadline, setLinkedinHeadline] = useState("");
   const [linkedinAbout, setLinkedinAbout] = useState("");

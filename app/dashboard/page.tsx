@@ -312,6 +312,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-6 text-sm font-medium">
           <Link href="/dashboard" className="text-white">Dashboard</Link>
           <Link href="/dashboard/vault" className="text-slate-400 hover:text-white transition-colors">Career Vault</Link>
+          <Link href="/dashboard/jobs" className="text-slate-400 hover:text-white transition-colors">Find Jobs</Link>
         </div>
         <div className="relative">
           <button 
