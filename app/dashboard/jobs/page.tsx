@@ -33,8 +33,65 @@ interface ResumeItem {
 
 function JobsContent() {
   const router = useRouter();
+
+  // Renders a LinkedIn job description with styled sections, bullets, and emojis
+  const renderDescription = (text: string) => {
+    const lines = text.split("\n").filter((l) => l.trim() !== "");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i].trim();
+
+      // Section heading heuristics: ALL CAPS line, or ends with ":", or emoji-prefixed header
+      const isSectionHead =
+        /^[A-Z][A-Z\s&/\-()]{4,}$/.test(line) ||
+        (/^.{2,60}:$/.test(line) && !/^[•\-\*]/.test(line)) ||
+        /^[\u{1F300}-\u{1FAFF}]/u.test(line);
+
+      if (isSectionHead) {
+        elements.push(
+          <h4 key={i} className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-4 mb-1.5 first:mt-0">
+            {line.replace(/:$/, "")}
+          </h4>
+        );
+      } else if (/^[•\-\*]\s/.test(line) || /^\d+\.\s/.test(line)) {
+        // Bullet / numbered list — collect consecutive items
+        const bullets: string[] = [];
+        while (
+          i < lines.length &&
+          (/^[•\-\*]\s/.test(lines[i].trim()) || /^\d+\.\s/.test(lines[i].trim()))
+        ) {
+          bullets.push(lines[i].trim().replace(/^[•\-\*\d+.]\s*/, ""));
+          i++;
+        }
+        elements.push(
+          <ul key={`ul-${i}`} className="space-y-1 mb-1">
+            {bullets.map((b, bi) => (
+              <li key={bi} className="flex gap-2 text-[11px] text-slate-300 leading-relaxed">
+                <span className="text-indigo-500 mt-0.5 shrink-0">›</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        );
+        continue;
+      } else {
+        elements.push(
+          <p key={i} className="text-[11px] text-slate-400 leading-relaxed">
+            {line}
+          </p>
+        );
+      }
+      i++;
+    }
+    return <div className="space-y-0.5">{elements}</div>;
+  };
   const [searchQuery, setSearchQuery] = useState("");
-  const [locationFilter, setLocationFilter] = useState("Dubai OR Europe");
+  // submittedQuery is what actually triggers the fetch — only updated on form submit
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [submittedLocation, setSubmittedLocation] = useState("dubai+europe");
+  const [locationFilter, setLocationFilter] = useState("dubai+europe");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showTailorModal, setShowTailorModal] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string>("");
@@ -43,22 +100,27 @@ function JobsContent() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
-  // Fetch jobs
-  const { data: jobsData, isLoading: jobsLoading, error: jobsError, refetch } = useQuery({
-    queryKey: ["jobs", searchQuery, locationFilter],
+  // Fetch jobs via the internal Next.js proxy (/api/jobs) to avoid CORS and timeout issues
+  const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
+    // Key is driven by submittedQuery/submittedLocation, NOT the live input values
+    queryKey: ["jobs", submittedQuery, submittedLocation],
+    enabled: !!submittedQuery,
     queryFn: async () => {
       const url = new URL("/api/jobs", window.location.origin);
-      if (searchQuery) url.searchParams.set("title", searchQuery);
-      url.searchParams.set("location", locationFilter);
-      
+      url.searchParams.set("keyword", submittedQuery);
+      url.searchParams.set("location", submittedLocation);
+
       const res = await fetch(url.toString());
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to fetch jobs");
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
       }
+
       const json = await res.json();
-      return json.jobs as Job[];
-    }
+      return (json.jobs || []) as Job[];
+    },
+    retry: 1,
+    staleTime: 5 * 60_000, // 5 min cache per unique keyword+location combo
   });
 
   // Fetch resumes to offer "Tailor Resume" integration
@@ -91,7 +153,9 @@ function JobsContent() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    refetch();
+    if (!searchQuery.trim()) return;
+    setSubmittedQuery(searchQuery.trim());
+    setSubmittedLocation(locationFilter);
   };
 
   const handleLogout = async () => {
@@ -122,16 +186,16 @@ function JobsContent() {
 
   const executeTailoring = async () => {
     if (!selectedResumeId || !selectedJob) return;
-    
+
     setIsGeneratingDescription(true);
     let finalDescription = selectedJob.description || "";
-    
-    const isPlaceholder = 
-      !finalDescription || 
-      finalDescription.includes("No description provided") || 
+
+    const isPlaceholder =
+      !finalDescription ||
+      finalDescription.includes("No description provided") ||
       finalDescription.includes("Click the 'View Job'") ||
       finalDescription.includes("Click Apply to view");
-      
+
     if (isPlaceholder) {
       try {
         addToast({
@@ -139,7 +203,7 @@ function JobsContent() {
           title: "AI Generation",
           message: "Generating a realistic job description for " + selectedJob.title + "..."
         });
-        
+
         const res = await fetch("/api/ai/generate-description", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -150,7 +214,7 @@ function JobsContent() {
             industry: selectedJob.company_industry
           })
         });
-        
+
         if (res.ok) {
           const json = await res.json();
           if (json.description) {
@@ -161,20 +225,20 @@ function JobsContent() {
         console.error("Failed to generate AI description, falling back to original", err);
       }
     }
-    
+
     // Save job details in localStorage for the ATS checker to fetch
     localStorage.setItem("prefilledJobDescription", finalDescription);
-    
+
     addToast({
       type: "success",
       title: "Optimizing",
       message: "Redirecting to ATS auditor panel..."
     });
-    
+
     setIsGeneratingDescription(false);
     setShowTailorModal(false);
     setShowDetailModal(false);
-    
+
     // Redirect to the ATS checker page with the chosen resume ID
     router.push(`/ats-checker?id=${selectedResumeId}`);
   };
@@ -197,7 +261,7 @@ function JobsContent() {
           <Link href="/dashboard/jobs" className="text-white">Find Jobs</Link>
         </div>
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowProfileDropdown(!showProfileDropdown)}
             className="flex items-center gap-3 hover:bg-slate-900 p-1.5 rounded-xl transition-smooth focus:outline-none cursor-pointer"
           >
@@ -219,7 +283,7 @@ function JobsContent() {
                   <span className="font-bold text-white">Thirumurugan</span>
                   <span className="text-[10px] text-slate-500 truncate">thirumuruganaks@gmail.com</span>
                 </div>
-                <button 
+                <button
                   onClick={handleLogout}
                   className="w-full text-left font-semibold text-red-400 hover:text-red-300 transition-colors cursor-pointer"
                 >
@@ -262,13 +326,13 @@ function JobsContent() {
               onChange={(e) => setLocationFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[150px]"
             >
-              <option value="Dubai OR Europe">Dubai & Europe</option>
-              <option value="Dubai">Dubai, UAE</option>
-              <option value="Europe">Europe (All)</option>
-              <option value="London, United Kingdom">London, UK</option>
-              <option value="Amsterdam, Netherlands">Amsterdam, NL</option>
-              <option value="Berlin, Germany">Berlin, DE</option>
-              <option value="Stockholm, Sweden">Stockholm, SE</option>
+              <option value="dubai+europe">Dubai & Europe</option>
+              <option value="dubai">Dubai, UAE</option>
+              <option value="europe">Europe (All)</option>
+              <option value="london">London, UK</option>
+              <option value="amsterdam">Amsterdam, NL</option>
+              <option value="berlin">Berlin, DE</option>
+              <option value="stockholm">Stockholm, SE</option>
             </select>
             <button
               type="submit"
@@ -282,18 +346,29 @@ function JobsContent() {
 
         {/* Jobs Grid (4 Cards per Row on Desktop) */}
         <div className="flex-1 overflow-y-auto max-h-[750px] pr-2 custom-scrollbar">
-          {jobsLoading ? (
+          {!submittedQuery && !jobsLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+              <div className="bg-indigo-600/10 border border-indigo-500/20 p-5 rounded-2xl">
+                <Search className="h-8 w-8 text-indigo-400 mx-auto" />
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">Search for Jobs</p>
+                <p className="text-slate-500 text-xs mt-1">Type a job title or keyword above and click <span className="text-indigo-400">Find Jobs</span> to search LinkedIn.</p>
+                <p className="text-slate-600 text-[10px] mt-1">e.g. "Frontend Engineer", "React", "DevOps", "Product Manager"</p>
+              </div>
+            </div>
+          ) : jobsLoading ? (
             <div className="flex-1 flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             </div>
           ) : jobsError ? (
             <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 border border-slate-900/60 rounded-2xl text-center text-xs gap-2">
-              <span className="text-slate-400 font-semibold">No active jobs found matching your criteria.</span>
-              <span className="text-red-400/80 font-mono text-[10px]">Error details: {jobsError.message || "Failed to load job listings."}</span>
+              <span className="text-slate-400 font-semibold">Failed to load job listings.</span>
+              <span className="text-red-400/80 font-mono text-[10px]">{jobsError.message}</span>
             </div>
           ) : jobs.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-900/60 p-10 rounded-2xl text-center text-slate-500 text-xs">
-              No active jobs found matching your criteria. Try another search.
+              No jobs found for <span className="text-white font-semibold">"{submittedQuery}"</span>. Try a different keyword or location.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-12">
@@ -321,14 +396,14 @@ function JobsContent() {
                           }}
                         />
                       ) : null}
-                      <div 
+                      <div
                         className="w-full h-full flex items-center justify-center font-bold text-xs bg-indigo-650/10 text-indigo-400"
                         style={{ display: job.company_logo ? "none" : "flex" }}
                       >
                         {job.company_name ? job.company_name.charAt(0).toUpperCase() : "J"}
                       </div>
                     </div>
-                    
+
                     {job.direct_apply && (
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-semibold px-2 py-0.5 rounded-full shrink-0">
                         Easy Apply
@@ -341,7 +416,12 @@ function JobsContent() {
                     <h3 className="font-bold text-xs text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug mb-1">
                       {job.title}
                     </h3>
-                    <div className="text-[11px] text-slate-455 font-medium mb-3">{job.company_name}</div>
+                    <div className="text-[11px] text-slate-455 font-medium mb-2">{job.company_name}</div>
+                    {job.description && !job.description.includes("Click the 'View Job'") && !job.description.includes("No description provided") && (
+                      <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
+                        {job.description.replace(/\n+/g, " ").slice(0, 120)}…
+                      </p>
+                    )}
                   </div>
 
                   {/* Bottom info: Location & Date */}
@@ -392,7 +472,7 @@ function JobsContent() {
                         }}
                       />
                     ) : null}
-                    <div 
+                    <div
                       className="w-full h-full flex items-center justify-center font-bold text-lg bg-indigo-650/10 text-indigo-400"
                       style={{ display: selectedJob.company_logo ? "none" : "flex" }}
                     >
@@ -402,7 +482,7 @@ function JobsContent() {
                   <div>
                     <h2 className="text-base font-bold text-white leading-snug">{selectedJob.title}</h2>
                     <div className="text-xs text-indigo-400 font-semibold mt-1">{selectedJob.company_name}</div>
-                    
+
                     <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 mt-2.5">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5 text-slate-500" />
@@ -415,8 +495,8 @@ function JobsContent() {
                     </div>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => setShowDetailModal(false)}
                   className="text-slate-400 hover:text-white bg-slate-950/60 border border-slate-800 p-1.5 rounded-full transition-smooth shrink-0 self-end sm:self-start cursor-pointer"
                 >
@@ -427,11 +507,20 @@ function JobsContent() {
               </div>
 
               {/* Description Content */}
-              <div className="p-6 overflow-y-auto text-left text-xs leading-relaxed text-slate-350 space-y-4 font-sans custom-scrollbar flex-1 max-h-[400px]">
-                <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Job Description</h3>
-                  <p className="whitespace-pre-wrap">{selectedJob.description || "No description provided."}</p>
-                </div>
+              <div className="p-6 overflow-y-auto text-left space-y-5 font-sans custom-scrollbar flex-1 max-h-[420px]">
+                {selectedJob.description && !selectedJob.description.includes("Click the 'View Job'") ? (
+                  renderDescription(selectedJob.description)
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                    <div className="bg-slate-800/60 p-3 rounded-xl">
+                      <ExternalLink className="h-5 w-5 text-slate-500" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400">Full description on LinkedIn</p>
+                      <p className="text-[10px] text-slate-600 mt-1">Click "Apply On LinkedIn" below to view the complete job post.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Action Buttons */}
@@ -446,7 +535,7 @@ function JobsContent() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Tailor My Resume
                 </button>
-                
+
                 {selectedJob.apply_url && (
                   <a
                     href={selectedJob.apply_url}
@@ -458,7 +547,7 @@ function JobsContent() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
-                
+
                 <button
                   onClick={() => setShowDetailModal(false)}
                   className="bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 hover:text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
