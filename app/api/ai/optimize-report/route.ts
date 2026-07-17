@@ -173,7 +173,7 @@ function buildResumeText(resume: any): string {
       (p.highlights || []).forEach((h: string) => lines.push(`- ${h}`));
     });
   }
-  if (resume.skills?.length) lines.push(`\nSKILLS: ${resume.skills.join(", ")}`);
+  if (resume.skills?.length) lines.push(`\nSKILLS: ${formatSkillsForPrompt(resume.skills)}`);
   if (resume.education?.length) {
     lines.push("\nEDUCATION:");
     resume.education.forEach((e: any) => lines.push(`${e.degree} - ${e.institution}`));
@@ -279,4 +279,21 @@ function computeLocalReport(resume: any) {
     ],
     issues,
   };
+}
+
+function formatSkillsForPrompt(skills: any[]): string {
+  if (!skills || !Array.isArray(skills)) return "";
+  const flat: string[] = [];
+  for (const s of skills) {
+    if (typeof s === "string") {
+      flat.push(s);
+    } else if (s && typeof s === "object") {
+      if (Array.isArray(s.items)) {
+        flat.push(...s.items.filter((item: any) => typeof item === "string"));
+      } else if (typeof s.category === "string" && typeof s.items === "string") {
+        flat.push(s.items);
+      }
+    }
+  }
+  return flat.join(", ");
 }

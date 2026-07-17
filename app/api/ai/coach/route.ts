@@ -28,7 +28,7 @@ CANDIDATE RESUME (Focus: ${focusSection || "entire resume"}):
 Name: ${clientContext.name || "Unknown"}
 Target Role: ${clientContext.role || "Not specified"}
 Summary: ${clientContext.summary || "None"}
-Skills: ${(clientContext.skills || []).join(", ")}
+Skills: ${formatSkillsForPrompt(clientContext.skills || [])}
 Experience: ${(clientContext.experience || []).join(" | ")}
 Projects: ${(clientContext.projects || []).join(", ")}
       `.trim();
@@ -47,7 +47,7 @@ Name: ${pi.fullName || ""}
 Email: ${pi.email || ""}
 Target Role: ${r.targetRole || ""}
 Summary: ${pi.summary || ""}
-Skills: ${(r.skills || []).join(", ")}
+Skills: ${formatSkillsForPrompt(r.skills || [])}
 Experience: ${(r.experience || []).map((e: any) => `${e.position} at ${e.company}`).join(" | ")}
 Projects: ${(r.projects || []).map((p: any) => p.title).join(", ")}
           `.trim();
@@ -92,4 +92,21 @@ Coach:
       { status: 500 }
     );
   }
+}
+
+function formatSkillsForPrompt(skills: any[]): string {
+  if (!skills || !Array.isArray(skills)) return "";
+  const flat: string[] = [];
+  for (const s of skills) {
+    if (typeof s === "string") {
+      flat.push(s);
+    } else if (s && typeof s === "object") {
+      if (Array.isArray(s.items)) {
+        flat.push(...s.items.filter((item: any) => typeof item === "string"));
+      } else if (typeof s.category === "string" && typeof s.items === "string") {
+        flat.push(s.items);
+      }
+    }
+  }
+  return flat.join(", ");
 }

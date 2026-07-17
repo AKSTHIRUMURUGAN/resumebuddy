@@ -147,7 +147,23 @@ export async function GET(request: NextRequest) {
                     children: [new TextRun({ text: "SKILLS", bold: true, size: 20 })],
                   }),
                   new Paragraph({
-                    children: [new TextRun({ text: skills.join(", "), size: 20 })],
+                    children: [new TextRun({
+                      text: skills.map((skill: any) => {
+                        if (typeof skill === "string") {
+                          return skill;
+                        }
+                        if (typeof skill === "object" && skill !== null) {
+                          if ("category" in skill && Array.isArray(skill.items)) {
+                            return `${skill.category}: ${skill.items.join(", ")}`;
+                          }
+                          if ("name" in skill) {
+                            return skill.name;
+                          }
+                        }
+                        return String(skill);
+                      }).join(", "),
+                      size: 20
+                    })],
                   }),
                 ]
               : []),

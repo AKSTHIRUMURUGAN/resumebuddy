@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 You are an expert resume optimization coach.
 
 Target Role: ${context.role || "Software Developer"}
-Core Skills: ${(context.skills || []).join(", ")}
+Core Skills: ${formatSkillsForPrompt(context.skills || [])}
 
 Original Bullet/Text Block:
 "${text}"
@@ -78,4 +78,21 @@ Return the output as a valid JSON array of strings: ["Option 1", "Option 2"]. Do
       { status: 500 }
     );
   }
+}
+
+function formatSkillsForPrompt(skills: any[]): string {
+  if (!skills || !Array.isArray(skills)) return "";
+  const flat: string[] = [];
+  for (const s of skills) {
+    if (typeof s === "string") {
+      flat.push(s);
+    } else if (s && typeof s === "object") {
+      if (Array.isArray(s.items)) {
+        flat.push(...s.items.filter((item: any) => typeof item === "string"));
+      } else if (typeof s.category === "string" && typeof s.items === "string") {
+        flat.push(s.items);
+      }
+    }
+  }
+  return flat.join(", ");
 }

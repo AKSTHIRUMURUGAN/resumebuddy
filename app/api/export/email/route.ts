@@ -168,10 +168,27 @@ const createPdfDocument = (resume: any) => {
 
   // Skills
   if (isVisible("skills") && skills.length > 0) {
+    const formattedSkills = skills.map((skill: any) => {
+      if (typeof skill === "string") {
+        return skill;
+      }
+      if (typeof skill === "object" && skill !== null) {
+        if ("category" in skill && Array.isArray(skill.items)) {
+          const cat = skill.category;
+          const items = skill.items.join(", ");
+          return `${cat}: ${items}`;
+        }
+        if ("name" in skill) {
+          return skill.name;
+        }
+      }
+      return String(skill);
+    });
+
     children.push(
       React.createElement(View, null,
         React.createElement(Text, { style: styles.sectionTitle }, "Skills"),
-        React.createElement(Text, { style: styles.skillsText }, skills.join(", "))
+        React.createElement(Text, { style: styles.skillsText }, formattedSkills.join("\n"))
       )
     );
   }
