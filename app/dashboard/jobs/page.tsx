@@ -92,6 +92,8 @@ function JobsContent() {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [submittedLocation, setSubmittedLocation] = useState("dubai+europe");
   const [locationFilter, setLocationFilter] = useState("dubai+europe");
+  const [sourceFilter, setSourceFilter] = useState("linkedin");
+  const [submittedSource, setSubmittedSource] = useState("linkedin");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showTailorModal, setShowTailorModal] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string>("");
@@ -102,11 +104,12 @@ function JobsContent() {
 
   // Fetch jobs via the internal Next.js proxy (/api/jobs) to avoid CORS and timeout issues
   const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
-    // Key is driven by submittedQuery/submittedLocation, NOT the live input values
-    queryKey: ["jobs", submittedQuery, submittedLocation],
+    // Key is driven by submittedQuery/submittedLocation/submittedSource, NOT the live input values
+    queryKey: ["jobs", submittedSource, submittedQuery, submittedLocation],
     enabled: !!submittedQuery,
     queryFn: async () => {
       const url = new URL("/api/jobs", window.location.origin);
+      url.searchParams.set("source", submittedSource);
       url.searchParams.set("keyword", submittedQuery);
       url.searchParams.set("location", submittedLocation);
 
@@ -156,6 +159,7 @@ function JobsContent() {
     if (!searchQuery.trim()) return;
     setSubmittedQuery(searchQuery.trim());
     setSubmittedLocation(locationFilter);
+    setSubmittedSource(sourceFilter);
   };
 
   const handleLogout = async () => {
@@ -301,10 +305,10 @@ function JobsContent() {
         <div className="mb-6 text-left">
           <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
             <Briefcase className="h-6 w-6 text-indigo-400" />
-            LinkedIn Jobs in Dubai & Europe
+            Global Job Search & Career Aggregator
           </h1>
           <p className="text-slate-400 text-xs mt-1">
-            Real-time job listings matching tech hubs in Dubai and Europe. Click & Tailor your resume instantly.
+            Real-time job listings from 25+ portals across UK, Europe, Ireland, US, Australia & Canada. Click & Tailor your resume instantly.
           </p>
         </div>
 
@@ -320,11 +324,53 @@ function JobsContent() {
               className="bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 w-full transition-all"
             />
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[160px]"
+            >
+              <option value="linkedin">🌍 LinkedIn Jobs</option>
+              <optgroup label="─── Global Aggregators ───">
+                <option value="indeed">Indeed</option>
+                <option value="talentcom">Talent.com</option>
+                <option value="monster">Monster</option>
+                <option value="jobrapido">Jobrapido</option>
+                <option value="adzuna">Adzuna</option>
+                <option value="glassdoor">Glassdoor</option>
+              </optgroup>
+              <optgroup label="─── UK & European Portals ───">
+                <option value="reed">Reed.co.uk 🇬🇧</option>
+                <option value="xing">XING Jobs (DACH) 🇩🇪</option>
+                <option value="eures">EURES (EU Mobility) 🇪🇺</option>
+                <option value="stepstone">StepStone 🇩🇪</option>
+                <option value="totaljobs">Totaljobs 🇬🇧</option>
+              </optgroup>
+              <optgroup label="─── Irish Portals ───">
+                <option value="irishjobs">IrishJobs.ie 🇮🇪</option>
+                <option value="jobsireland">JobsIreland.ie 🇮🇪</option>
+              </optgroup>
+              <optgroup label="─── Recruitment Agencies ───">
+                <option value="randstad">Randstad Careers</option>
+                <option value="michaelpage">Michael Page</option>
+                <option value="hays">Hays Careers</option>
+              </optgroup>
+              <optgroup label="─── Australia & Canada ───">
+                <option value="seek">SEEK Australia 🇦🇺</option>
+                <option value="jora">Jora Australia 🇦🇺</option>
+                <option value="jobbank">Job Bank Canada 🇨🇦</option>
+                <option value="workopolis">Workopolis Canada 🇨🇦</option>
+              </optgroup>
+              <optgroup label="─── ATS Systems ───">
+                <option value="ashby">Ashby</option>
+                <option value="greenhouse">Greenhouse</option>
+                <option value="lever">Lever</option>
+              </optgroup>
+            </select>
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[150px]"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[140px]"
             >
               <option value="dubai+europe">Dubai & Europe</option>
               <option value="dubai">Dubai, UAE</option>
@@ -332,7 +378,9 @@ function JobsContent() {
               <option value="london">London, UK</option>
               <option value="amsterdam">Amsterdam, NL</option>
               <option value="berlin">Berlin, DE</option>
-              <option value="stockholm">Stockholm, SE</option>
+              <option value="dublin">Dublin, IE</option>
+              <option value="sydney">Sydney, AU</option>
+              <option value="toronto">Toronto, CA</option>
             </select>
             <button
               type="submit"
@@ -353,7 +401,7 @@ function JobsContent() {
               </div>
               <div>
                 <p className="text-white font-semibold text-sm">Search for Jobs</p>
-                <p className="text-slate-500 text-xs mt-1">Type a job title or keyword above and click <span className="text-indigo-400">Find Jobs</span> to search LinkedIn.</p>
+                <p className="text-slate-500 text-xs mt-1">Select any portal above, type a keyword, and click <span className="text-indigo-400">Find Jobs</span> to search live vacancies.</p>
                 <p className="text-slate-600 text-[10px] mt-1">e.g. "Frontend Engineer", "React", "DevOps", "Product Manager"</p>
               </div>
             </div>

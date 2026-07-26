@@ -6,39 +6,40 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const SCRAPER_BASE = "http://145.223.19.170:8080/api/v1/jobs";
-const TIMEOUT_MS = 30_000; // 30 s — LinkedIn scraping is slow
+const TIMEOUT_MS = 40_000; // 40 s — headless browser scraping can take time
 
-function buildScraperUrl(keyword: string, city?: string): string {
+function buildScraperUrl(source: string, keyword: string, city?: string, company?: string): string {
   const url = new URL(SCRAPER_BASE);
-  url.searchParams.set("source", "linkedin");
+  url.searchParams.set("source", source || "linkedin");
   if (keyword) url.searchParams.set("keyword", keyword);
   if (city) url.searchParams.set("city", city);
+  if (company) url.searchParams.set("company", company);
   return url.toString();
 }
 
-function mapJob(job: any, fallbackLocation: string) {
+function mapJob(job: any, fallbackLocation: string, source: string) {
   return {
-    job_id: job.id || Math.random().toString(),
+    job_id: job.id || job.job_id || Math.random().toString(),
     title: job.title || "Job Position",
-    company_name: job.company || "Confidential",
+    company_name: job.company || job.company_name || "Confidential",
     location:
       [job.city, job.state, job.country].filter(Boolean).join(", ") ||
+      job.location ||
       fallbackLocation,
     posted_date: job.posted_date || job.open_time || "",
-    // job_url is the LinkedIn listing; apply_url is Easy Apply (often null)
-    apply_url: job.job_url || job.apply_url || "https://www.linkedin.com/jobs",
+    apply_url: job.apply_url || job.job_url || "#",
     description:
       job.description ||
-      "No description provided. Click Apply to view full details on LinkedIn.",
-    company_industry: "LinkedIn",
+      `No description provided. Click Apply to view full details on ${source.toUpperCase()}.`,
+    company_industry: job.company_industry || source.toUpperCase(),
     headcount: job.applicants ? `${job.applicants} applicants` : undefined,
-    direct_apply: !!job.apply_url,
+    direct_apply: !!(job.apply_url || job.job_url),
     company_logo: job.company_logo || null,
   };
 }
 
-async function fetchCity(keyword: string, city: string, fallback: string) {
-  const scraperUrl = buildScraperUrl(keyword, city);
+async function fetchCity(source: string, keyword: string, city: string, fallback: string, company?: string) {
+  const scraperUrl = buildScraperUrl(source, keyword, city, company);
   console.log(`[jobs] fetching: ${scraperUrl}`);
 
   const res = await fetch(scraperUrl, {
@@ -47,12 +48,12 @@ async function fetchCity(keyword: string, city: string, fallback: string) {
   });
 
   if (!res.ok) {
-    console.warn(`[jobs] scraper returned ${res.status} for city="${city}"`);
+    console.warn(`[jobs] scraper returned ${res.status} for source="${source}" city="${city}"`);
     return [];
   }
 
   const data = await res.json();
-  return (Array.isArray(data) ? data : []).map((j: any) => mapJob(j, fallback));
+  return (Array.isArray(data) ? data : []).map((j: any) => mapJob(j, fallback, source));
 }
 
 export async function GET(request: NextRequest) {
@@ -60,8 +61,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const keyword = searchParams.get("keyword") || "";
     const location = searchParams.get("location") || "dubai+europe";
+    const source = searchParams.get("source") || "linkedin";
+    const company = searchParams.get("company") || "";
 
-    if (!keyword) {
+    if (!keyword && !company) {
       return NextResponse.json({ jobs: [], total_jobs: 0 });
     }
 
@@ -70,8 +73,8 @@ export async function GET(request: NextRequest) {
     if (location === "dubai+europe") {
       // Parallel fetch both regions
       const [dubaiJobs, europeJobs] = await Promise.allSettled([
-        fetchCity(keyword, "dubai", "Dubai"),
-        fetchCity(keyword, "europe", "Europe"),
+        fetchCity(source, keyword, "dubai", "Dubai", company),
+        fetchCity(source, keyword, "europe", "Europe", company),
       ]);
 
       const dubai =
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
         return true;
       });
     } else {
-      jobs = await fetchCity(keyword, location, location);
+      jobs = await fetchCity(source, keyword, location, location, company);
     }
 
     return NextResponse.json({ jobs, total_jobs: jobs.length });
