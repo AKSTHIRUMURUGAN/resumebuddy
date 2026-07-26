@@ -72,9 +72,14 @@ export async function GET(request: NextRequest) {
     let targetLocation = location;
     let targetCompany = company;
 
+    // Global portals work anywhere — don't force a regional default, just use London for "dubai+europe"
+    const GLOBAL_PORTALS = ["indeed", "monster", "adzuna", "jobrapido", "glassdoor", "linkedin"];
+
     // Smart regional mapping when default/incompatible location is selected
     if (location === "dubai+europe" || location === "dubai" || location === "europe") {
-      if (["seek", "jora", "careerone", "workforceaustralia"].includes(source)) {
+      if (GLOBAL_PORTALS.includes(source)) {
+        targetLocation = "London"; // London as neutral global default
+      } else if (["seek", "jora", "careerone", "workforceaustralia"].includes(source)) {
         targetLocation = "Sydney";
       } else if (["irishjobs", "jobsireland"].includes(source)) {
         targetLocation = "Dublin";

@@ -400,16 +400,30 @@ function JobsContent() {
             <select
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[160px]"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[180px]"
             >
               <option value="linkedin">🌍 LinkedIn Jobs</option>
+              <optgroup label="─── Global Aggregators ───">
+                <option value="indeed">Indeed 🌐</option>
+                <option value="adzuna">Adzuna 🌐</option>
+                <option value="jobrapido">Jobrapido 🌐</option>
+                <option value="monster">Monster 🌐</option>
+              </optgroup>
               <optgroup label="─── UK & European Portals ───">
                 <option value="reed">Reed.co.uk 🇬🇧</option>
+                <option value="totaljobs">Totaljobs 🇬🇧</option>
+                <option value="glassdoor">Glassdoor 🇬🇧</option>
+                <option value="stepstone">StepStone 🇩🇪</option>
                 <option value="eures">EURES (EU Mobility) 🇪🇺</option>
               </optgroup>
               <optgroup label="─── Irish Portals ───">
                 <option value="irishjobs">IrishJobs.ie 🇮🇪</option>
                 <option value="jobsireland">JobsIreland.ie 🇮🇪</option>
+              </optgroup>
+              <optgroup label="─── Australia & Canada ───">
+                <option value="seek">SEEK 🇦🇺</option>
+                <option value="jora">Jora 🇦🇺</option>
+                <option value="workopolis">Workopolis 🇨🇦</option>
               </optgroup>
               <optgroup label="─── Recruitment Agencies ───">
                 <option value="randstad">Randstad Careers</option>
@@ -417,6 +431,7 @@ function JobsContent() {
                 <option value="hays">Hays Careers</option>
               </optgroup>
               <optgroup label="─── ATS Systems ───">
+                <option value="lever">Lever ATS</option>
                 <option value="ashby">Ashby ATS</option>
                 <option value="greenhouse">Greenhouse</option>
                 <option value="smartrecruiters">SmartRecruiters</option>
