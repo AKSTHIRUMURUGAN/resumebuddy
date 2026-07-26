@@ -68,13 +68,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ jobs: [], total_jobs: 0 });
     }
 
+    let targetLocation = location;
+    let targetCompany = company;
+
+    // Smart regional mapping when default/incompatible location is selected
+    if (location === "dubai+europe" || location === "dubai" || location === "europe") {
+      if (["seek", "jora", "careerone", "workforceaustralia"].includes(source)) {
+        targetLocation = "Sydney";
+      } else if (["irishjobs", "jobsireland"].includes(source)) {
+        targetLocation = "Dublin";
+      } else if (["jobbank", "workopolis", "eluta"].includes(source)) {
+        targetLocation = "Toronto";
+      } else if (["reed", "totaljobs", "cvlibrary"].includes(source)) {
+        targetLocation = "London";
+      } else if (["xing", "stepstone"].includes(source)) {
+        targetLocation = "Berlin";
+      } else if (["randstad", "michaelpage", "hays"].includes(source)) {
+        targetLocation = "London";
+      }
+    }
+
+    // Smart ATS company default if none provided
+    if (["ashby", "greenhouse", "lever", "smartrecruiters", "personio"].includes(source) && !targetCompany) {
+      if (source === "ashby") targetCompany = "openai";
+      else if (source === "lever") targetCompany = "netflix";
+      else if (source === "greenhouse") targetCompany = "contentful";
+      else targetCompany = "spotify";
+    }
+
     let jobs: ReturnType<typeof mapJob>[] = [];
 
-    if (location === "dubai+europe") {
+    if (targetLocation === "dubai+europe") {
       // Parallel fetch both regions
       const [dubaiJobs, europeJobs] = await Promise.allSettled([
-        fetchCity(source, keyword, "dubai", "Dubai", company),
-        fetchCity(source, keyword, "europe", "Europe", company),
+        fetchCity(source, keyword, "dubai", "Dubai", targetCompany),
+        fetchCity(source, keyword, "europe", "Europe", targetCompany),
       ]);
 
       const dubai =
@@ -90,7 +118,7 @@ export async function GET(request: NextRequest) {
         return true;
       });
     } else {
-      jobs = await fetchCity(source, keyword, location, location, company);
+      jobs = await fetchCity(source, keyword, targetLocation, targetLocation, targetCompany);
     }
 
     return NextResponse.json({ jobs, total_jobs: jobs.length });
