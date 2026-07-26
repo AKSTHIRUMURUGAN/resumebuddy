@@ -51,7 +51,7 @@ function JobsContent() {
   };
 
   const getPortalDisplayName = (source?: string) => {
-    if (!source) return "LinkedIn";
+    const s = source || submittedSource || sourceFilter || "linkedin";
     const map: Record<string, string> = {
       linkedin: "LinkedIn",
       irishjobs: "IrishJobs.ie",
@@ -65,8 +65,22 @@ function JobsContent() {
       greenhouse: "Greenhouse",
       smartrecruiters: "SmartRecruiters",
       personio: "Personio",
+      indeed: "Indeed",
+      monster: "Monster",
+      jobrapido: "Jobrapido",
+      adzuna: "Adzuna",
+      glassdoor: "Glassdoor",
+      stepstone: "StepStone",
+      totaljobs: "Totaljobs",
+      seek: "SEEK",
+      jora: "Jora",
+      workopolis: "Workopolis",
+      lever: "Lever",
+      jobbank: "Job Bank",
+      xing: "XING",
+      careerjet: "CareerJet",
     };
-    return map[source.toLowerCase()] || source.toUpperCase() || "Portal";
+    return map[s.toLowerCase()] || s.charAt(0).toUpperCase() + s.slice(1) || "Portal";
   };
 
   // Renders a job description with styled sections, bullets, and emojis after cleaning HTML
@@ -122,20 +136,21 @@ function JobsContent() {
       i++;
     }
 
-    if (cleanText.length < 250 && job?.apply_url) {
+    const targetUrl = job?.apply_url || (job as any)?.job_url || (job as any)?.url;
+    if ((cleanText.length < 350 || lines.length <= 4) && targetUrl && targetUrl !== "#") {
       elements.push(
         <div key="readmore-box" className="mt-6 p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
           <div>
             <p className="text-xs font-bold text-indigo-300">Want the full job details?</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">This listing summary was provided by {getPortalDisplayName(job?.source || sourceFilter)}.</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">This listing summary was provided by {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}.</p>
           </div>
           <a
-            href={job.apply_url}
+            href={targetUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-xs whitespace-nowrap transition-all shadow-md shadow-indigo-600/20"
           >
-            Read More on {getPortalDisplayName(job?.source || sourceFilter)}
+            Read More on {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -520,7 +535,7 @@ function JobsContent() {
                       <span className="truncate">{job.location}</span>
                     </div>
                     <div className="flex justify-between items-center text-[9px] text-slate-600 font-semibold mt-1">
-                      <span>{job.company_industry || getPortalDisplayName(job.source || sourceFilter)}</span>
+                      <span>{job.company_industry || getPortalDisplayName(job.source || submittedSource || sourceFilter)}</span>
                       {job.posted_date && (
                         <span>
                           {new Date(job.posted_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
@@ -605,8 +620,8 @@ function JobsContent() {
                       <ExternalLink className="h-5 w-5 text-slate-500" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-400">Full description on {getPortalDisplayName(selectedJob.source || sourceFilter)}</p>
-                      <p className="text-[10px] text-slate-600 mt-1">Click "Apply on {getPortalDisplayName(selectedJob.source || sourceFilter)}" below to view the complete job post.</p>
+                      <p className="text-xs font-semibold text-slate-400">Full description on {getPortalDisplayName(selectedJob.source || submittedSource || sourceFilter)}</p>
+                      <p className="text-[10px] text-slate-600 mt-1">Click "Apply on {getPortalDisplayName(selectedJob.source || submittedSource || sourceFilter)}" below to view the complete job post.</p>
                     </div>
                   </div>
                 )}
@@ -625,14 +640,14 @@ function JobsContent() {
                   Tailor My Resume
                 </button>
 
-                {selectedJob.apply_url && (
+                {(selectedJob.apply_url || (selectedJob as any).job_url || (selectedJob as any).url) && (
                   <a
-                    href={selectedJob.apply_url}
+                    href={selectedJob.apply_url || (selectedJob as any).job_url || (selectedJob as any).url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-700/60 rounded-xl px-5 py-2.5 text-xs font-semibold text-slate-200 hover:text-white transition-all cursor-pointer"
                   >
-                    Apply on {getPortalDisplayName(selectedJob.source || sourceFilter)}
+                    Apply on {getPortalDisplayName(selectedJob.source || submittedSource || sourceFilter)}
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}

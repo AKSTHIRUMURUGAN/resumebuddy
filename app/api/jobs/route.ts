@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 // self-host to benefit from this setting.
 export const maxDuration = 60;
 
-const SCRAPER_BASE = "http://145.223.19.170:8080/api/v1/jobs";
+const SCRAPER_BASE = process.env.SCRAPER_URL || "http://145.223.19.170:8080/api/v1/jobs";
 const TIMEOUT_MS = 40_000; // 40 s — headless browser scraping can take time
 
 function buildScraperUrl(source: string, keyword: string, city?: string, company?: string): string {
@@ -27,7 +27,7 @@ function mapJob(job: any, fallbackLocation: string, source: string) {
       job.location ||
       fallbackLocation,
     posted_date: job.posted_date || job.open_time || "",
-    apply_url: job.apply_url || job.job_url || "#",
+    apply_url: job.apply_url || job.job_url || job.url || "#",
     description:
       job.description ||
       `No description provided. Click Apply to view full details on ${source.toUpperCase()}.`,
@@ -35,6 +35,7 @@ function mapJob(job: any, fallbackLocation: string, source: string) {
     headcount: job.applicants ? `${job.applicants} applicants` : undefined,
     direct_apply: !!(job.apply_url || job.job_url),
     company_logo: job.company_logo || null,
+    source: job.source || source,
   };
 }
 
