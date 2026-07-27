@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search, MapPin, Briefcase, ExternalLink, Loader2,
-  Sparkles, Users, Building, ChevronRight
+  Sparkles, Users, Building, ChevronRight, ChevronDown, ChevronUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToastStore } from "@/store/toastStore";
@@ -137,12 +137,13 @@ function JobsContent() {
     }
 
     const targetUrl = job?.apply_url || (job as any)?.job_url || (job as any)?.url;
-    if ((cleanText.length < 350 || lines.length <= 4) && targetUrl && targetUrl !== "#") {
+    // Only show "Read More" if description is genuinely missing/very short (< 150 chars)
+    if (cleanText.length < 150 && targetUrl && targetUrl !== "#") {
       elements.push(
         <div key="readmore-box" className="mt-6 p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
           <div>
-            <p className="text-xs font-bold text-indigo-300">Want the full job details?</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">This listing summary was provided by {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}.</p>
+            <p className="text-xs font-bold text-indigo-300">Full description available on the portal</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Provided by {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}.</p>
           </div>
           <a
             href={targetUrl}
@@ -150,7 +151,7 @@ function JobsContent() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-xs whitespace-nowrap transition-all shadow-md shadow-indigo-600/20"
           >
-            Read More on {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}
+            View Full Job on {getPortalDisplayName(job?.source || submittedSource || sourceFilter)}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -173,6 +174,7 @@ function JobsContent() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [expandedDesc, setExpandedDesc] = useState(false);
 
   // Fetch jobs via the internal Next.js proxy (/api/jobs) to avoid CORS and timeout issues
   const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
@@ -497,6 +499,7 @@ function JobsContent() {
                   onClick={() => {
                     setSelectedJobId(job.job_id);
                     setShowDetailModal(true);
+                    setExpandedDesc(false);
                   }}
                   className="group relative bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-900/70 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 cursor-pointer text-left h-[260px]"
                 >
@@ -625,10 +628,22 @@ function JobsContent() {
                 </button>
               </div>
 
-              {/* Description Content */}
-              <div className="p-6 overflow-y-auto text-left space-y-5 font-sans custom-scrollbar flex-1 max-h-[420px]">
+              {/* Description Content — scrollable, no hard cut-off */}
+              <div className="p-6 overflow-y-auto text-left space-y-5 font-sans custom-scrollbar flex-1" style={{ maxHeight: expandedDesc ? "75vh" : "480px" }}>
                 {selectedJob.description && !selectedJob.description.includes("Click the 'View Job'") ? (
-                  renderDescription(selectedJob.description, selectedJob)
+                  <>
+                    {renderDescription(selectedJob.description, selectedJob)}
+                    {/* Expand / Collapse toggle for very long descriptions */}
+                    {(selectedJob.description.length > 1200) && (
+                      <button
+                        onClick={() => setExpandedDesc(!expandedDesc)}
+                        className="mt-4 flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold transition-colors cursor-pointer"
+                      >
+                        {expandedDesc ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {expandedDesc ? "Show less" : "Show full description"}
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
                     <div className="bg-slate-800/60 p-3 rounded-xl">
