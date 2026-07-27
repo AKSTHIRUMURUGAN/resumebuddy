@@ -406,16 +406,16 @@ function JobsContent() {
             >
               <option value="linkedin">🌍 LinkedIn Jobs</option>
               <optgroup label="─── Global Aggregators ───">
-                <option value="indeed">Indeed 🌐</option>
+                {/* <option value="indeed">Indeed 🌐</option> */}
                 <option value="adzuna">Adzuna 🌐</option>
                 <option value="jobrapido">Jobrapido 🌐</option>
-                <option value="monster">Monster 🌐</option>
+                {/* <option value="monster">Monster 🌐</option> */}
               </optgroup>
               <optgroup label="─── UK & European Portals ───">
                 <option value="reed">Reed.co.uk 🇬🇧</option>
-                <option value="totaljobs">Totaljobs 🇬🇧</option>
+                {/* <option value="totaljobs">Totaljobs 🇬🇧</option> */}
                 <option value="glassdoor">Glassdoor 🇬🇧</option>
-                <option value="stepstone">StepStone 🇩🇪</option>
+                {/* <option value="stepstone">StepStone 🇩🇪</option> */}
                 <option value="eures">EURES (EU Mobility) 🇪🇺</option>
               </optgroup>
               <optgroup label="─── Irish Portals ───">
@@ -425,7 +425,7 @@ function JobsContent() {
               <optgroup label="─── Australia & Canada ───">
                 <option value="seek">SEEK 🇦🇺</option>
                 <option value="jora">Jora 🇦🇺</option>
-                <option value="workopolis">Workopolis 🇨🇦</option>
+                {/* <option value="workopolis">Workopolis 🇨🇦</option> */}
               </optgroup>
               <optgroup label="─── Recruitment Agencies ───">
                 <option value="randstad">Randstad Careers</option>
