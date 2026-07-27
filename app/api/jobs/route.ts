@@ -94,12 +94,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Smart ATS company default if none provided
+    // For ATS portals without a target company, don't pass a restrictive city filter or single hardcoded company,
+    // let the backend scraper search its entire tech company pool across all locations!
     if (["ashby", "greenhouse", "lever", "smartrecruiters", "personio"].includes(source) && !targetCompany) {
-      if (source === "ashby") targetCompany = "openai";
-      else if (source === "lever") targetCompany = "netflix";
-      else if (source === "greenhouse") targetCompany = "contentful";
-      else targetCompany = "spotify";
+      targetLocation = "";
+      targetCompany = "";
     }
 
     let jobs: ReturnType<typeof mapJob>[] = [];
