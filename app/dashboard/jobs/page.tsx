@@ -163,10 +163,14 @@ function JobsContent() {
   const [searchQuery, setSearchQuery] = useState("");
   // submittedQuery is what actually triggers the fetch — only updated on form submit
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [submittedLocation, setSubmittedLocation] = useState("dubai+europe");
-  const [locationFilter, setLocationFilter] = useState("dubai+europe");
-  const [sourceFilter, setSourceFilter] = useState("linkedin");
-  const [submittedSource, setSubmittedSource] = useState("linkedin");
+  const [submittedLocation, setSubmittedLocation] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [submittedSource, setSubmittedSource] = useState("all");
+  const [displayedJobs, setDisplayedJobs] = useState<Job[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMoreJobs, setHasMoreJobs] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showTailorModal, setShowTailorModal] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string>("");
@@ -194,11 +198,59 @@ function JobsContent() {
       }
 
       const json = await res.json();
-      return (json.jobs || []) as Job[];
+      return {
+        jobs: (json.jobs || []) as Job[],
+        has_more: json.has_more !== false,
+        page: json.page || 1,
+      };
     },
     retry: 1,
     staleTime: 5 * 60_000, // 5 min cache per unique keyword+location combo
   });
+
+  useEffect(() => {
+    if (jobsData) {
+      setDisplayedJobs(jobsData.jobs);
+      setHasMoreJobs(jobsData.has_more);
+      setCurrentPage(jobsData.page);
+    } else {
+      setDisplayedJobs([]);
+    }
+  }, [jobsData]);
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMoreJobs) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const url = new URL("/api/jobs", window.location.origin);
+      url.searchParams.set("source", submittedSource);
+      url.searchParams.set("keyword", submittedQuery);
+      url.searchParams.set("location", submittedLocation);
+      url.searchParams.set("page", String(nextPage));
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error("Failed to load more jobs");
+      const json = await res.json();
+      const newJobs = (json.jobs || []) as Job[];
+
+      if (newJobs.length > 0) {
+        setDisplayedJobs((prev) => {
+          const seen = new Set(prev.map((j) => j.job_id));
+          const unique = newJobs.filter((j) => !seen.has(j.job_id));
+          return [...prev, ...unique];
+        });
+        setCurrentPage(nextPage);
+      }
+      if (json.has_more === false || newJobs.length === 0 || nextPage >= 6) {
+        setHasMoreJobs(false);
+      }
+    } catch (err) {
+      console.error("Load more error:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Fetch resumes to offer "Tailor Resume" integration
   const { data: resumesList } = useQuery({
@@ -211,7 +263,7 @@ function JobsContent() {
     }
   });
 
-  const jobs = jobsData || [];
+  const jobs = displayedJobs;
   const selectedJob = jobs.find((j) => j.job_id === selectedJobId) || jobs[0] || null;
 
   // Auto-select first job if none is selected
@@ -404,6 +456,7 @@ function JobsContent() {
               onChange={(e) => setSourceFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-indigo-300 font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[180px]"
             >
+              <option value="all">All Platforms</option>
               <option value="linkedin">🌍 LinkedIn Jobs</option>
               <optgroup label="─── Global Aggregators ───">
                 {/* <option value="indeed">Indeed 🌐</option> */}
@@ -445,6 +498,7 @@ function JobsContent() {
               onChange={(e) => setLocationFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer min-w-[140px]"
             >
+              <option value="all">🌍 All Locations (Global)</option>
               <option value="dubai+europe">Dubai & Europe</option>
               <option value="dubai">Dubai, UAE</option>
               <option value="europe">Europe (All)</option>
@@ -492,78 +546,104 @@ function JobsContent() {
               No jobs found for <span className="text-white font-semibold">"{submittedQuery}"</span>. Try a different keyword or location.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-12">
-              {jobs.map((job) => (
-                <div
-                  key={job.job_id}
-                  onClick={() => {
-                    setSelectedJobId(job.job_id);
-                    setShowDetailModal(true);
-                    setExpandedDesc(false);
-                  }}
-                  className="group relative bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-900/70 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 cursor-pointer text-left h-[260px]"
-                >
-                  {/* Top row: Logo and badges */}
-                  <div className="flex justify-between items-start gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-850 flex items-center justify-center overflow-hidden shrink-0">
-                      {job.company_logo ? (
-                        <img
-                          src={job.company_logo}
-                          alt={job.company_name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                            const sibling = (e.target as HTMLElement).nextElementSibling;
-                            if (sibling) (sibling as HTMLElement).style.display = "flex";
-                          }}
-                        />
-                      ) : null}
-                      <div
-                        className="w-full h-full flex items-center justify-center font-bold text-xs bg-indigo-650/10 text-indigo-400"
-                        style={{ display: job.company_logo ? "none" : "flex" }}
-                      >
-                        {job.company_name ? job.company_name.charAt(0).toUpperCase() : "J"}
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-6">
+                {jobs.map((job) => (
+                  <div
+                    key={job.job_id}
+                    onClick={() => {
+                      setSelectedJobId(job.job_id);
+                      setShowDetailModal(true);
+                      setExpandedDesc(false);
+                    }}
+                    className="group relative bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-900/70 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 cursor-pointer text-left h-[260px]"
+                  >
+                    {/* Top row: Logo and badges */}
+                    <div className="flex justify-between items-start gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-850 flex items-center justify-center overflow-hidden shrink-0">
+                        {job.company_logo ? (
+                          <img
+                            src={job.company_logo}
+                            alt={job.company_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                              const sibling = (e.target as HTMLElement).nextElementSibling;
+                              if (sibling) (sibling as HTMLElement).style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className="w-full h-full flex items-center justify-center font-bold text-xs bg-indigo-650/10 text-indigo-400"
+                          style={{ display: job.company_logo ? "none" : "flex" }}
+                        >
+                          {job.company_name ? job.company_name.charAt(0).toUpperCase() : "J"}
+                        </div>
                       </div>
-                    </div>
 
-                    {job.direct_apply && (
-                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-semibold px-2 py-0.5 rounded-full shrink-0">
-                        Easy Apply
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Content info */}
-                  <div className="flex-1 flex flex-col justify-start">
-                    <h3 className="font-bold text-xs text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug mb-1">
-                      {job.title}
-                    </h3>
-                    <div className="text-[11px] text-slate-455 font-medium mb-2">{job.company_name}</div>
-                    {job.description && !job.description.includes("Click the 'View Job'") && !job.description.includes("No description provided") && (
-                      <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
-                        {stripHtml(job.description).replace(/\n+/g, " ").slice(0, 120)}…
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Bottom info: Location & Date */}
-                  <div className="border-t border-slate-850/60 pt-3 mt-3 flex flex-col gap-1.5">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                      <span className="truncate">{job.location}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] text-slate-600 font-semibold mt-1">
-                      <span>{job.company_industry || getPortalDisplayName(job.source || submittedSource || sourceFilter)}</span>
-                      {job.posted_date && (
-                        <span>
-                          {new Date(job.posted_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      {job.direct_apply && (
+                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-semibold px-2 py-0.5 rounded-full shrink-0">
+                          Easy Apply
                         </span>
                       )}
                     </div>
+
+                    {/* Content info */}
+                    <div className="flex-1 flex flex-col justify-start">
+                      <h3 className="font-bold text-xs text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug mb-1">
+                        {job.title}
+                      </h3>
+                      <div className="text-[11px] text-slate-455 font-medium mb-2">{job.company_name}</div>
+                      {job.description && !job.description.includes("Click the 'View Job'") && !job.description.includes("No description provided") && (
+                        <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
+                          {stripHtml(job.description).replace(/\n+/g, " ").slice(0, 120)}…
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bottom info: Location & Date */}
+                    <div className="border-t border-slate-850/60 pt-3 mt-3 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                        <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{job.location}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] text-slate-600 font-semibold mt-1">
+                        <span>{job.company_industry || getPortalDisplayName(job.source || submittedSource || sourceFilter)}</span>
+                        {job.posted_date && (
+                          <span>
+                            {new Date(job.posted_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {hasMoreJobs && (
+                <div className="flex justify-center mt-4 pb-8">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl text-xs transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Fetching next batch of portals...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Load More Jobs</span>
+                        <span className="bg-indigo-950/40 text-indigo-200 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                          +Fetch Next Batch
+                        </span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </main>
